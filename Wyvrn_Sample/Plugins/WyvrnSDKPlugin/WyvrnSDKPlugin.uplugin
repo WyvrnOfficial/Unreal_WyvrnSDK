@@ -1,0 +1,26 @@
+{
+  "FileVersion": 3,
+
+  "FriendlyName": "WyvrnSDKPlugin",
+  "Version": 1,
+  "VersionName": "1.0",
+  "CreatedBy": "Razer, Inc.",
+  "CreatedByURL": "https://github.com/wyvrn/Unreal_WyvrnSDK",
+  "EngineVersion": "4.21.0",
+  "Description": "Plugin for WyvrnSDK",
+  "Category": "Other",
+  "EnabledByDefault": true,
+  "CanContainContent": true,
+
+  "Modules": [
+    {
+      "Name": "WyvrnSDKPlugin",
+      "Type": "Runtime",
+      "LoadingPhase": "PreLoadingScreen",
+      "PlatformAllowList": [
+        "Win32",
+        "Win64"
+      ]
+    }
+  ]
+}
