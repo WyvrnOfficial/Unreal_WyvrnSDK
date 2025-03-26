@@ -96,7 +96,7 @@ int WyvrnAPI::InitAPI()
 
 #ifdef CHECK_WYVRN_LIBRARY_SIGNATURE
 	// verify the library has a valid signature
-	//_sInvalidSignature = !VerifyLibrarySignature::VerifyModule(path);
+	_sInvalidSignature = !VerifyLibrarySignature::VerifyModule(path);
 #endif
 
 	if (_sInvalidSignature)
