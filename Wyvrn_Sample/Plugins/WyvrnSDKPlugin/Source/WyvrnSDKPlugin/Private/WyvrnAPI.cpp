@@ -101,7 +101,8 @@ int WyvrnAPI::InitAPI()
 
 	if (_sInvalidSignature)
 	{
-		WyvrnLogger::fprintf(stderr, "Wyvrn Editor Library has an invalid signature!\r\n");
+		//Expected scenario: Debug builds might not be signed
+		//WyvrnLogger::fprintf(stderr, "Wyvrn Editor Library has an invalid signature!\r\n");
 		return RZRESULT_DLL_INVALID_SIGNATURE;
 	}
 
@@ -114,8 +115,9 @@ int WyvrnAPI::InitAPI()
 	HMODULE library = LoadLibrary(path.c_str());
 	if (library == NULL)
 	{ 
-		UE_LOG(LogWyvrnAPI, Error, TEXT("Failed to load Wyvrn SDK!"));
-		WyvrnLogger::fprintf(stderr, "Failed to load Wyvrn SDK!\r\n");
+		//Expected scenario: When Wyvrn SDK is not installed or out of date
+		//UE_LOG(LogWyvrnAPI, Error, TEXT("Failed to load Wyvrn SDK!"));
+		//WyvrnLogger::fprintf(stderr, "Failed to load Wyvrn SDK!\r\n");
         return RZRESULT_DLL_NOT_FOUND;
 	}
 

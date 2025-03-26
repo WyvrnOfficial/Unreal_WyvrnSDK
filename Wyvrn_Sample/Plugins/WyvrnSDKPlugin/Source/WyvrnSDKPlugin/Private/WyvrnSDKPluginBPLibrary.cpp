@@ -41,7 +41,8 @@ int32 UWyvrnSDKPluginBPLibrary::WyvrnSDKInitSDK(const FWyvrnSDKAppInfoType& appI
 #if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
 	if (!WyvrnAPI::GetIsInitializedAPI())
 	{
-		UE_LOG(LogWyvrnBlueprintLibrary, Error, TEXT("UWyvrnSDKPluginBPLibrary: API is not initialized!"));
+		//Expected scenario: Wyvrn SDK is not installed or out of date
+		//UE_LOG(LogWyvrnBlueprintLibrary, Error, TEXT("UWyvrnSDKPluginBPLibrary: API is not initialized!"));
 		return -1;
 	}
 	if (!_sInitialized)
