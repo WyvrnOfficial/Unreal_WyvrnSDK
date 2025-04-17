@@ -2,10 +2,10 @@
   "FileVersion": 3,
 
   "FriendlyName": "WyvrnSDKPlugin",
-  "Version": 1,
-  "VersionName": "1.0",
+  "Version": 2,
+  "VersionName": "2.0",
   "CreatedBy": "Razer, Inc.",
-  "CreatedByURL": "https://github.com/wyvrn/Unreal_WyvrnSDK",
+  "CreatedByURL": "https://github.com/WyvrnOfficial/Unreal_WyvrnSDK/tree/UNICODE_WITHOUT_DLL",
   "EngineVersion": "4.21.0",
   "Description": "Plugin for WyvrnSDK",
   "Category": "Other",

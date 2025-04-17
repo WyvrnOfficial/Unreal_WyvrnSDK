@@ -13,7 +13,7 @@ typedef long RZRESULT;
 
 #if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
 
-typedef LONG RZRESULT;           
+typedef long RZRESULT;           
 
 #include "Windows/AllowWindowsPlatformTypes.h" 
 
