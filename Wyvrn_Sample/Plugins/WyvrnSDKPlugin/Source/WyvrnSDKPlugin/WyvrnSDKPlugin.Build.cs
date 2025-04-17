@@ -16,8 +16,8 @@ namespace UnrealBuildTool.Rules
 			DefaultBuildSettings = BuildSettingsVersion.Latest;
 #endif
 
-            PrivateDefinitions.Add("CHECK_WYVRN_LIBRARY_SIGNATURE=1");
-            PublicDefinitions.Add("CHECK_WYVRN_LIBRARY_SIGNATURE=1");
+            PrivateDefinitions.Add("CHECK_WYVRNSDK_LIBRARY_SIGNATURE=1");
+            PublicDefinitions.Add("CHECK_WYVRNSDK_LIBRARY_SIGNATURE=1");
 
             PublicIncludePaths.AddRange(
 				new string[] {
