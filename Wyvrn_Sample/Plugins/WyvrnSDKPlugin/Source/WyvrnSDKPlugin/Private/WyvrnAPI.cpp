@@ -74,7 +74,7 @@ namespace WyvrnSDK {
 			}
 			if (!_sIsInitializedAPI)
 			{
-				return RZRESULT_FAILED;
+				return static_cast<RZRESULT>(RZRESULT_FAILED);
 			}
 		}
 		if (_sInitialized)
