@@ -5,15 +5,7 @@
 
 #pragma once
 
-#if !(PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE))
-
 typedef long RZRESULT;
-
-#endif
-
-#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
-
-typedef long RZRESULT;           
 
 #include "Windows/AllowWindowsPlatformTypes.h" 
 
@@ -34,7 +26,5 @@ namespace WyvrnSDK
 }
 
 #include "Windows/HideWindowsPlatformTypes.h"
-
-#endif
 
 #endif

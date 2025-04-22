@@ -6,6 +6,8 @@
 
 #include "WyvrnSDKTypes.h"
 
+#include "Windows/AllowWindowsPlatformTypes.h" 
+
 #pragma region API typedefs
 /*
 	Direct access to low level API.
@@ -58,5 +60,7 @@ namespace WyvrnSDK
 		};
 	}
 }
+
+#include "Windows/HideWindowsPlatformTypes.h"
 
 #endif
