@@ -108,7 +108,7 @@ int UnicodeWyvrnAPI::InitAPI()
 		return RZRESULT_DLL_NOT_FOUND;
 	}
 
-#ifdef CHECK_WYVRNSDK_LIBRARY_SIGNATURE
+#ifndef NO_CHECK_WYVRNSDK_LIBRARY_SIGNATURE
 	// verify the library has a valid signature
 	_sInvalidSignature = !VerifyLibrarySignature::VerifyModule(path);
 #endif
