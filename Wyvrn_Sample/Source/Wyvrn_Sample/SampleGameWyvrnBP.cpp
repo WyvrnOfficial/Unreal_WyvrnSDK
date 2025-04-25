@@ -23,7 +23,7 @@ void USampleGameWyvrnBP::SampleGameSampleStart()
 	if (!UWyvrnSDKPluginBPLibrary::IsInitialized())
 	{
 		FWyvrnSDKAppInfoType appInfo;
-		appInfo.Title = "Unreal Wyvrn Sample Game Application";
+		appInfo.Title = "Game Sample: Application";
 		appInfo.Description = "A sample application using Razer Wyvrn SDK";
 		appInfo.Author_Name = "Razer";
 		appInfo.Author_Contact = "https://wyvrn.com";
