@@ -6,6 +6,10 @@
 #ifndef _WYVRNERRORS_H_
 #define _WYVRNERRORS_H_
 
+#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
+
+#include "Windows/AllowWindowsPlatformTypes.h" 
+
 #pragma once
 
 // Error codes
@@ -47,5 +51,9 @@
 #define     RZRESULT_DLL_INVALID_SIGNATURE		6033L
 //! General failure.
 #define     RZRESULT_FAILED                     2147500037L
+
+#include "Windows/HideWindowsPlatformTypes.h"
+
+#endif
 
 #endif

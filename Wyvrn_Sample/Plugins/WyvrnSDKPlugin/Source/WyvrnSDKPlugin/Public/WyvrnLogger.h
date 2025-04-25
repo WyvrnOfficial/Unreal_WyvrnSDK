@@ -2,7 +2,11 @@
 
 #pragma once
 
+
+#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
+
 #include <stdio.h>
+#include "Windows/AllowWindowsPlatformTypes.h" 
 
 namespace WyvrnSDK
 {
@@ -16,3 +20,7 @@ namespace WyvrnSDK
 		static void fwprintf(FILE* stream, const wchar_t* format, ...);
 	};
 }
+
+#include "Windows/HideWindowsPlatformTypes.h"
+
+#endif

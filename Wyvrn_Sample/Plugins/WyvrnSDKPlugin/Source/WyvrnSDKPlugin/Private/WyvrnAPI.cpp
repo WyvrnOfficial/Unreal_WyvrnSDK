@@ -7,7 +7,6 @@
 #include <tchar.h>
 
 
-using namespace std;
 using namespace WyvrnSDK::Implementation;
 
 namespace WyvrnSDK {

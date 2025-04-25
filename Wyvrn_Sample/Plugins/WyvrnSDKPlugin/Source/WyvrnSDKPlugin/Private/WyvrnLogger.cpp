@@ -1,7 +1,11 @@
 // Copyright 2017-2025 Razer, Inc. All Rights Reserved.
 
 #include "WyvrnLogger.h"
+
+#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
+
 #include <stdarg.h>
+#include "Windows/AllowWindowsPlatformTypes.h" 
 
 using namespace WyvrnSDK;
 
@@ -45,3 +49,7 @@ void WyvrnLogger::fwprintf(FILE* stream, const wchar_t* format, ...)
 	va_end(args);
 #endif
 }
+
+#include "Windows/HideWindowsPlatformTypes.h"
+
+#endif

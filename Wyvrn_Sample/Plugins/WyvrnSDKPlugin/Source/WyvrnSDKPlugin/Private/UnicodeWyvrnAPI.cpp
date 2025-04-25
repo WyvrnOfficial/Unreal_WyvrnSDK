@@ -25,10 +25,12 @@
 
 #endif
 
+#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
+#include "Windows/AllowWindowsPlatformTypes.h" 
+#endif
 
 using namespace WyvrnSDK;
 using namespace WyvrnSDK::Implementation;
-using namespace std;
 
 HMODULE UnicodeWyvrnAPI::_sLibrary = nullptr;
 bool UnicodeWyvrnAPI::_sInvalidSignature = false;
@@ -46,7 +48,7 @@ WYVRNSDK_DECLARE_METHOD_IMPL(PLUGIN_CORE_UNINIT, CoreUnInit);
 #define WYVRNSDK_VALIDATE_METHOD(Signature, FieldName) FieldName = reinterpret_cast<Signature>(reinterpret_cast<void*>(GetProcAddress(library, "Plugin" #FieldName))); \
 if (FieldName == nullptr) \
 { \
-	cerr << "Failed to find method: " << ("Plugin" #FieldName) << endl; \
+	std::cerr << "Failed to find method: " << ("Plugin" #FieldName) << std::endl; \
     return -1; \
 }
 
@@ -82,7 +84,7 @@ int UnicodeWyvrnAPI::InitAPI()
 
 #else
 
-	wstring path = RAZER_CHROMATIC_DLL;
+	std::wstring path = RAZER_CHROMATIC_DLL;
 
 	// 2. The system directory.Use the GetSystemDirectory function to get the path of this directory.
 
@@ -169,5 +171,9 @@ int UnicodeWyvrnAPI::UninitAPI()
 	
 	return 0;
 }
+
+#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
+#include "Windows/HideWindowsPlatformTypes.h"
+#endif
 
 #endif

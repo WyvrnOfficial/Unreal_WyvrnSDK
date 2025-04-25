@@ -9,6 +9,8 @@ DECLARE_LOG_CATEGORY_EXTERN(LogWyvrnAnimationAPI, Log, All);
 
 #include "WyvrnSDKTypes.h"
 
+#include "Windows/AllowWindowsPlatformTypes.h" 
+
 namespace WyvrnSDK
 {
 	/* Setup log mechanism */
@@ -45,5 +47,7 @@ namespace WyvrnSDK
 		static bool _sInitialized;
 	};
 }
+
+#include "Windows/HideWindowsPlatformTypes.h"
 
 #endif
