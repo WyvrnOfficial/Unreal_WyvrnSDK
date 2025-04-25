@@ -4,7 +4,7 @@
 #include "WyvrnSDKPluginPrivatePCH.h"
 //#include "VerifyLibrarySignature.h" //___HACK_UE4_VERSION_4_15_OR_LESS
 
-#if PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
 
 #include "WyvrnLogger.h"
 #define WIN32_LEAN_AND_MEAN

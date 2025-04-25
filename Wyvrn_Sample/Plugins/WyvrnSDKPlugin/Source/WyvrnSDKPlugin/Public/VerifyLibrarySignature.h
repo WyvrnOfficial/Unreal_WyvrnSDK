@@ -4,6 +4,10 @@
 
 #include <string>
 
+#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
+
+#include "Windows/AllowWindowsPlatformTypes.h"
+
 namespace WyvrnSDK
 {
 	class VerifyLibrarySignature
@@ -16,3 +20,7 @@ namespace WyvrnSDK
 		static bool IsFileSigned(const wchar_t* szFileName);
 	};
 }
+
+#include "Windows/HideWindowsPlatformTypes.h"
+
+#endif

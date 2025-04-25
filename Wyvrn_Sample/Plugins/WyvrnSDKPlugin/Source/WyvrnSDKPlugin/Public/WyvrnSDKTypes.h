@@ -7,6 +7,8 @@
 
 typedef long RZRESULT;
 
+#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
+
 #include "Windows/AllowWindowsPlatformTypes.h" 
 
 namespace WyvrnSDK
@@ -26,5 +28,7 @@ namespace WyvrnSDK
 }
 
 #include "Windows/HideWindowsPlatformTypes.h"
+
+#endif
 
 #endif
