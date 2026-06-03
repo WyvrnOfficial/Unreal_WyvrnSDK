@@ -8,7 +8,6 @@
 #include "IDesktopPlatform.h"
 #include "Misc/MessageDialog.h"
 #include "Modules/ModuleManager.h"
-#include "Styling/SlateIcon.h"
 #include "ToolMenus.h"
 
 #include "WyvrnConfigImporter.h"

@@ -2,6 +2,7 @@
 
 #include "WyvrnImportSettings.h"
 
+#include "Misc/App.h"
 #include "Misc/Paths.h"
 
 UWyvrnImportSettings::UWyvrnImportSettings()
@@ -13,7 +14,8 @@ UWyvrnImportSettings::UWyvrnImportSettings()
 
 FString UWyvrnImportSettings::GetDiscoveredFolder() const
 {
-	return FPaths::Combine(HapticFolderRoot, AppFolderName);
+	const FString AppName = AppFolderName.IsEmpty() ? FString(FApp::GetProjectName()) : AppFolderName;
+	return FPaths::Combine(HapticFolderRoot, AppName);
 }
 
 FName UWyvrnImportSettings::GetCategoryName() const

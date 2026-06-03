@@ -11,7 +11,7 @@
 
 #include "WyvrnConfigParser.h"
 #include "WyvrnHapticData.h"
-#include "WyvrnHapticMaterial.h"
+#include "WyvrnHapticEffect.h"
 
 namespace
 {
@@ -39,10 +39,10 @@ namespace
 		return true;
 	}
 
-	// Reads <SourceFolder>/<EffectName>.haps and saves it as a UWyvrnHapticMaterial.
+	// Reads <SourceFolder>/<EffectName>.haps and saves it as a UWyvrnHapticEffect.
 	// Returns nullptr (OutError empty) when the file is simply absent, so the
 	// caller can skip that effect; OutError is set only on a hard failure.
-	UWyvrnHapticMaterial* ImportMaterial(const FString& SourceFolder, const FString& MaterialsPath, const FString& EffectName, FString& OutError)
+	UWyvrnHapticEffect* ImportHapticEffect(const FString& SourceFolder, const FString& HapticEffectPath, const FString& EffectName, FString& OutError)
 	{
 		const FString HapsPath = FPaths::Combine(SourceFolder, EffectName + TEXT(".haps"));
 		FString Json;
@@ -52,7 +52,7 @@ namespace
 			return nullptr;
 		}
 
-		const FString PackageName = FPaths::Combine(MaterialsPath, EffectName);
+		const FString PackageName = FPaths::Combine(HapticEffectPath, EffectName);
 		UPackage* Package = CreatePackage(*PackageName);
 		if (Package == nullptr)
 		{
@@ -60,18 +60,18 @@ namespace
 			return nullptr;
 		}
 
-		UWyvrnHapticMaterial* Material = NewObject<UWyvrnHapticMaterial>(Package, FName(*EffectName), RF_Public | RF_Standalone);
-		Material->Json = MoveTemp(Json);
-		Material->SourceName = EffectName;
+		UWyvrnHapticEffect* HapticEffect = NewObject<UWyvrnHapticEffect>(Package, FName(*EffectName), RF_Public | RF_Standalone);
+		HapticEffect->Json = MoveTemp(Json);
+		HapticEffect->SourceName = EffectName;
 
-		FAssetRegistryModule::AssetCreated(Material);
+		FAssetRegistryModule::AssetCreated(HapticEffect);
 		Package->MarkPackageDirty();
 
-		if (!SaveAssetPackage(Package, Material, OutError))
+		if (!SaveAssetPackage(Package, HapticEffect, OutError))
 		{
 			return nullptr;
 		}
-		return Material;
+		return HapticEffect;
 	}
 }
 
@@ -91,7 +91,7 @@ UWyvrnHapticData* FWyvrnConfigImporter::ImportFromFolder(const FString& SourceFo
 		return nullptr;
 	}
 
-	const FString MaterialsPath = FPaths::Combine(OutputContentPath, TEXT("Materials"));
+	const FString HapticEffectPath = FPaths::Combine(OutputContentPath, TEXT("HapticEffect"));
 	const FString DataPackageName = FPaths::Combine(OutputContentPath, TEXT("WyvrnHapticData"));
 
 	UPackage* DataPackage = CreatePackage(*DataPackageName);
@@ -107,7 +107,7 @@ UWyvrnHapticData* FWyvrnConfigImporter::ImportFromFolder(const FString& SourceFo
 	FPaths::NormalizeDirectoryName(NormalizedSource);
 	Data->SourceAppName = FPaths::GetCleanFilename(NormalizedSource);
 
-	TMap<FString, UWyvrnHapticMaterial*> MaterialsByEffect;
+	TMap<FString, UWyvrnHapticEffect*> EffectsByName;
 
 	for (const FWyvrnParsedCommand& ParsedCommand : ParsedCommands)
 	{
@@ -138,11 +138,11 @@ UWyvrnHapticData* FWyvrnConfigImporter::ImportFromFolder(const FString& SourceFo
 				continue;
 			}
 
-			UWyvrnHapticMaterial** Cached = MaterialsByEffect.Find(ParsedEffect.EffectName);
-			UWyvrnHapticMaterial* Material = Cached != nullptr
+			UWyvrnHapticEffect** Cached = EffectsByName.Find(ParsedEffect.EffectName);
+			UWyvrnHapticEffect* HapticEffect = Cached != nullptr
 				? *Cached
-				: ImportMaterial(SourceFolder, MaterialsPath, ParsedEffect.EffectName, OutError);
-			if (Material == nullptr)
+				: ImportHapticEffect(SourceFolder, HapticEffectPath, ParsedEffect.EffectName, OutError);
+			if (HapticEffect == nullptr)
 			{
 				if (!OutError.IsEmpty())
 				{
@@ -150,15 +150,15 @@ UWyvrnHapticData* FWyvrnConfigImporter::ImportFromFolder(const FString& SourceFo
 				}
 				continue;
 			}
-			MaterialsByEffect.Add(ParsedEffect.EffectName, Material);
+			EffectsByName.Add(ParsedEffect.EffectName, HapticEffect);
 
-			FWyvrnHapticEffect Effect;
-			Effect.Material = Material;
-			Effect.Gain = Gain;
-			Effect.Loop = ParsedEffect.Loop;
-			Effect.Priority = ParsedEffect.Priority;
-			Effect.Targets = MoveTemp(Targets);
-			Command.Effects.Add(MoveTemp(Effect));
+			FWyvrnHapticEffect EffectEntry;
+			EffectEntry.Effect = HapticEffect;
+			EffectEntry.Gain = Gain;
+			EffectEntry.Loop = ParsedEffect.Loop;
+			EffectEntry.Priority = ParsedEffect.Priority;
+			EffectEntry.Targets = MoveTemp(Targets);
+			Command.Effects.Add(MoveTemp(EffectEntry));
 		}
 
 		if (Command.Effects.Num() > 0 || Command.InterruptCommands.Num() > 0)

@@ -8,7 +8,7 @@ class UWyvrnHapticData;
 
 /**
  * Bakes PS5 haptics from a WYVRN folder: reads WYVRN.config, imports the
- * controller-relevant .haps files as UWyvrnHapticMaterial assets, and writes a
+ * controller-relevant .haps files as UWyvrnHapticEffect assets, and writes a
  * UWyvrnHapticData under the given content path. Editor-only.
  */
 class FWyvrnConfigImporter

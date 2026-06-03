@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "WyvrnHapticTypes.generated.h"
 
-class UWyvrnHapticMaterial;
+class UWyvrnHapticEffect;
 
 /**
  * Body region a haptic event addresses, mirroring the WYVRN.config "Target".
@@ -35,17 +35,17 @@ enum class EWyvrnHapticPriority : uint8
 };
 
 /**
- * One haptic effect triggered by a command: the Interhaptics material plus the
- * playback parameters resolved from WYVRN.config.
+ * One haptic effect triggered by a command: the Interhaptics effect asset plus
+ * the playback parameters resolved from WYVRN.config.
  */
 USTRUCT(BlueprintType)
 struct WYVRNSDKPLUGIN_API FWyvrnHapticEffect
 {
 	GENERATED_BODY()
 
-	/** Interhaptics material (one .haps). Its JSON is handed to HAR AddHM at runtime. */
+	/** Interhaptics haptic effect (one .haps). Its JSON is handed to HAR AddHM at runtime. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
-	UWyvrnHapticMaterial* Material = nullptr;
+	UWyvrnHapticEffect* Effect = nullptr;
 
 	/** Intensity factor forwarded to SetEventIntensity. HAR clamps it above 0. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
@@ -77,7 +77,7 @@ struct WYVRNSDKPLUGIN_API FWyvrnHapticCommand
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
 	TArray<FWyvrnHapticEffect> Effects;
 
-	/** Events whose playback stops when this command fires (WYVRN.config Interrupt_Command). */
+	/** Events whose playback stops when this command fires (WYVRN.config Interrupts_Commands). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
 	TArray<FString> InterruptCommands;
 };

@@ -28,11 +28,13 @@ namespace
 		return EWyvrnHapticPriority::High;
 	}
 
-	// Interrupt_Command may be a single event name or an array of them.
+	// Interrupts_Commands lists the events to stop when this command fires. It may
+	// be an array of event names, a single event name, or the string "All" (stop
+	// everything). Captured verbatim here; the runtime interprets "All".
 	void ParseInterruptCommands(const TSharedPtr<FJsonObject>& CommandObject, TArray<FString>& OutCommands)
 	{
 		const TArray<TSharedPtr<FJsonValue>>* AsArray = nullptr;
-		if (CommandObject->TryGetArrayField(TEXT("Interrupt_Command"), AsArray))
+		if (CommandObject->TryGetArrayField(TEXT("Interrupts_Commands"), AsArray))
 		{
 			for (const TSharedPtr<FJsonValue>& Value : *AsArray)
 			{
@@ -46,7 +48,7 @@ namespace
 		}
 
 		FString Single;
-		if (CommandObject->TryGetStringField(TEXT("Interrupt_Command"), Single) && !Single.IsEmpty())
+		if (CommandObject->TryGetStringField(TEXT("Interrupts_Commands"), Single) && !Single.IsEmpty())
 		{
 			OutCommands.Add(Single);
 		}

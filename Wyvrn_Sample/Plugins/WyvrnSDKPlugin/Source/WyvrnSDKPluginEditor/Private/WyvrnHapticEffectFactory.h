@@ -4,19 +4,19 @@
 
 #include "CoreMinimal.h"
 #include "Factories/Factory.h"
-#include "WyvrnHapticMaterialFactory.generated.h"
+#include "WyvrnHapticEffectFactory.generated.h"
 
 /**
- * Imports Interhaptics .haps files into UWyvrnHapticMaterial assets, storing the
+ * Imports Interhaptics .haps files into UWyvrnHapticEffect assets, storing the
  * file's JSON text verbatim so the runtime backend can hand it to HAR AddHM.
  */
 UCLASS()
-class UWyvrnHapticMaterialFactory : public UFactory
+class UWyvrnHapticEffectFactory : public UFactory
 {
 	GENERATED_BODY()
 
 public:
-	UWyvrnHapticMaterialFactory();
+	UWyvrnHapticEffectFactory();
 
 	virtual UObject* FactoryCreateText(
 		UClass* InClass,
