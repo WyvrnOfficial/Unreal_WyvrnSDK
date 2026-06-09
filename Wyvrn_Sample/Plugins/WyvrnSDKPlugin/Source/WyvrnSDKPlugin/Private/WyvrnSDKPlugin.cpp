@@ -62,4 +62,11 @@ void FWyvrnSDKPlugin::ShutdownModule()
 
 #include "Windows/HideWindowsPlatformTypes.h"
 
+#else
+
+// Platforms without the RzChromatic backend (e.g. PS5) still need a module
+// implementation so the module loads. It is inert until the Interhaptics
+// backend is wired in.
+IMPLEMENT_MODULE(FDefaultModuleImpl, WyvrnSDKPlugin)
+
 #endif
