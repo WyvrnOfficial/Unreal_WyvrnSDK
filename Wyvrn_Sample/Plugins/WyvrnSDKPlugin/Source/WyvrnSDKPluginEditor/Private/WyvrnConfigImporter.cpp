@@ -152,7 +152,7 @@ UWyvrnHapticData* FWyvrnConfigImporter::ImportFromFolder(const FString& SourceFo
 			}
 			EffectsByName.Add(ParsedEffect.EffectName, HapticEffect);
 
-			FWyvrnHapticEffect EffectEntry;
+			FWyvrnHapticEvent EffectEntry;
 			EffectEntry.Effect = HapticEffect;
 			EffectEntry.Gain = Gain;
 			EffectEntry.Loop = ParsedEffect.Loop;

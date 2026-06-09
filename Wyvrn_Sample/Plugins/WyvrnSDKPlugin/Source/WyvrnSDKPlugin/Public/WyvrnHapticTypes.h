@@ -35,11 +35,11 @@ enum class EWyvrnHapticPriority : uint8
 };
 
 /**
- * One haptic effect triggered by a command: the Interhaptics effect asset plus
- * the playback parameters resolved from WYVRN.config.
+ * One haptic event triggered by a command (a WYVRN.config Haptic_Event): the
+ * Interhaptics effect asset plus its playback parameters.
  */
 USTRUCT(BlueprintType)
-struct WYVRNSDKPLUGIN_API FWyvrnHapticEffect
+struct WYVRNSDKPLUGIN_API FWyvrnHapticEvent
 {
 	GENERATED_BODY()
 
@@ -75,7 +75,7 @@ struct WYVRNSDKPLUGIN_API FWyvrnHapticCommand
 	FString EventName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
-	TArray<FWyvrnHapticEffect> Effects;
+	TArray<FWyvrnHapticEvent> Effects;
 
 	/** Events whose playback stops when this command fires (WYVRN.config Interrupts_Commands). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
