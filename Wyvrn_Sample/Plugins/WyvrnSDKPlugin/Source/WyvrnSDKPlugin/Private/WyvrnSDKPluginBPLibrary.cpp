@@ -8,7 +8,7 @@
 #include "WyvrnErrors.h"
 #include <string>
 
-#if PLATFORM_PS5
+#if defined(PLATFORM_PS5) && PLATFORM_PS5
 #include "IWyvrnHapticBackend.h"
 #endif
 
@@ -89,7 +89,7 @@ int32 UWyvrnSDKPluginBPLibrary::WyvrnSDKInitSDK(const FWyvrnSDKAppInfoType& appI
 	{
 		return -1;
 	}
-#elif PLATFORM_PS5
+#elif defined(PLATFORM_PS5) && PLATFORM_PS5
 	if (IWyvrnHapticBackend* Backend = GetWyvrnHapticBackend())
 	{
 		return Backend->Initialize() ? 0 : -1;
@@ -120,7 +120,7 @@ int32 UWyvrnSDKPluginBPLibrary::WyvrnSDKUnInit()
 	{
 		return -1;
 	}
-#elif PLATFORM_PS5
+#elif defined(PLATFORM_PS5) && PLATFORM_PS5
 	if (IWyvrnHapticBackend* Backend = GetWyvrnHapticBackend())
 	{
 		Backend->Shutdown();
@@ -139,7 +139,7 @@ int32 UWyvrnSDKPluginBPLibrary::SetEventName(const FString& name)
 		return -1;
 	}
 	return WyvrnAPI::CoreSetEventName(TCHAR_TO_WCHAR(*name));
-#elif PLATFORM_PS5
+#elif defined(PLATFORM_PS5) && PLATFORM_PS5
 	IWyvrnHapticBackend* Backend = GetWyvrnHapticBackend();
 	if (Backend == nullptr || !Backend->IsInitialized())
 	{
@@ -156,7 +156,7 @@ bool UWyvrnSDKPluginBPLibrary::IsInitialized()
 {
 #if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
 	return _sInitialized;
-#elif PLATFORM_PS5
+#elif defined(PLATFORM_PS5) && PLATFORM_PS5
 	const IWyvrnHapticBackend* Backend = GetWyvrnHapticBackend();
 	return Backend != nullptr && Backend->IsInitialized();
 #else

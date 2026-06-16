@@ -62,7 +62,7 @@ void FWyvrnSDKPlugin::ShutdownModule()
 
 #include "Windows/HideWindowsPlatformTypes.h"
 
-#elif PLATFORM_PS5
+#elif defined(PLATFORM_PS5) && PLATFORM_PS5
 
 #include "IWyvrnHapticBackend.h"
 #include "InterhapticsHapticBackend.h"

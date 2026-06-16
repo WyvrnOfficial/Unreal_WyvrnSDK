@@ -2,7 +2,7 @@
 
 #include "InterhapticsHapticBackend.h"
 
-#if PLATFORM_PS5
+#if defined(PLATFORM_PS5) && PLATFORM_PS5
 
 #include "WyvrnHapticData.h"
 #include "WyvrnHapticTypes.h"

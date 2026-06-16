@@ -67,7 +67,10 @@ namespace UnrealBuildTool.Rules
 			// Stage them next to the title (loaded from /app0/sce_module/ - keep this in sync
 			// with the paths in InterhapticsRuntime.cpp). If the binaries are not present the
 			// runtime stays inert, so the title still builds and packages without them.
-			if (Target.Platform == UnrealTargetPlatform.PS5)
+			// Compare by name rather than UnrealTargetPlatform.PS5: that member only exists
+			// when the PS5 platform extension is installed, so referencing it directly breaks
+			// this .Build.cs from even compiling on engine versions without PS5 support.
+			if (Target.Platform.ToString() == "PS5")
 			{
 				string PrxBinDir = Path.Combine(ModuleDirectory, "..", "ThirdParty", "Interhaptics", "PS5", "bin");
 

@@ -2,7 +2,7 @@
 
 #include "InterhapticsRuntime.h"
 
-#if PLATFORM_PS5
+#if defined(PLATFORM_PS5) && PLATFORM_PS5
 
 #include "InterhapticsHARTypes.h"
 #include "WyvrnHapticTypes.h"

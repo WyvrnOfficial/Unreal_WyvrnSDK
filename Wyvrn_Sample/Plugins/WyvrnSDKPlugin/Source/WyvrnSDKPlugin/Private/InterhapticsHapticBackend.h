@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-#if PLATFORM_PS5
+#if defined(PLATFORM_PS5) && PLATFORM_PS5
 
 #include "IWyvrnHapticBackend.h"
 #include "HapticVoicePool.h"

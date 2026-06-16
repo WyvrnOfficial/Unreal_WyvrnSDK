@@ -52,7 +52,7 @@ void USampleGameWyvrnBP::SampleGameSampleStart()
 			break;
 		}
 	}
-#elif PLATFORM_PS5
+#elif defined(PLATFORM_PS5) && PLATFORM_PS5
 	if (!UWyvrnSDKPluginBPLibrary::IsInitialized())
 	{
 		// PS5 brings up HAR + the DualSense provider through the plugin's
@@ -66,7 +66,7 @@ void USampleGameWyvrnBP::SampleGameSampleStart()
 
 void USampleGameWyvrnBP::SampleGameSampleEnd()
 {
-#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE) || PLATFORM_PS5
+#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE) || (defined(PLATFORM_PS5) && PLATFORM_PS5)
 	UWyvrnSDKPluginBPLibrary::WyvrnSDKUnInit();
 #endif
 }
