@@ -26,3 +26,11 @@ public:
 	/** Fires a named WYVRN event (External_Command_ID). */
 	virtual void SetEventName(const FString& EventName) = 0;
 };
+
+#if PLATFORM_PS5
+/**
+ * Returns the PS5 haptic backend owned by the WyvrnSDKPlugin module, or null if
+ * the module is not loaded. Defined in WyvrnSDKPlugin.cpp.
+ */
+IWyvrnHapticBackend* GetWyvrnHapticBackend();
+#endif

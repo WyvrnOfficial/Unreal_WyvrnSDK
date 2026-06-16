@@ -47,6 +47,15 @@ void FHapticVoicePool::PlayCommand(const FWyvrnHapticCommand& Command, double No
 {
 	for (const FString& Interrupt : Command.InterruptCommands)
 	{
+		// "All" is a WYVRN.config sentinel meaning stop every active event,
+		// not an event literally named "All".
+		if (Interrupt == TEXT("All"))
+		{
+			Runtime.StopAll();
+			ActiveVoicesByEvent.Empty();
+			continue;
+		}
+
 		if (TArray<int32>* Active = ActiveVoicesByEvent.Find(Interrupt))
 		{
 			for (const int32 MaterialId : *Active)

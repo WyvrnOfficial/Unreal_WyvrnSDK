@@ -6,10 +6,9 @@
 
 #include "InterhapticsHARTypes.h"
 #include "WyvrnHapticTypes.h"
+#include "WyvrnHapticsLog.h"
 
 #include <kernel.h>
-
-DEFINE_LOG_CATEGORY_STATIC(LogWyvrnHaptics, Log, All);
 
 namespace
 {

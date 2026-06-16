@@ -19,6 +19,7 @@ namespace
 		int32 NextId = 1;
 		TArray<int32> Played;
 		TArray<int32> Stopped;
+		int32 StoppedAllCount = 0;
 
 		virtual bool Initialize() override { return true; }
 		virtual void Shutdown() override {}
@@ -29,7 +30,7 @@ namespace
 		virtual void AddTarget(int32 MaterialId, EWyvrnHapticTarget Target) override {}
 		virtual void Play(int32 MaterialId) override { Played.Add(MaterialId); }
 		virtual void Stop(int32 MaterialId) override { Stopped.Add(MaterialId); }
-		virtual void StopAll() override {}
+		virtual void StopAll() override { ++StoppedAllCount; }
 		virtual double GetLength(int32 MaterialId) const override { return 1.0; }
 		virtual void Render(double TimeSeconds) override {}
 	};
@@ -90,6 +91,48 @@ bool FHapticVoicePoolTest::RunTest(const FString& Parameters)
 	Pool.Tick(5.0);
 	Pool.PlayCommand(Command, 5.0);
 	TestEqual(TEXT("a play after reclaim issues one more"), Runtime.Played.Num(), 4);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FHapticVoicePoolStopAllTest,
+	"Wyvrn.Haptics.VoicePoolStopAll",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FHapticVoicePoolStopAllTest::RunTest(const FString& Parameters)
+{
+	UWyvrnHapticEffect* HapticEffect = NewObject<UWyvrnHapticEffect>(GetTransientPackage());
+	HapticEffect->Json = TEXT("{}");
+
+	FWyvrnHapticEvent EffectEntry;
+	EffectEntry.Effect = HapticEffect;
+	EffectEntry.Gain = 1.0f;
+	EffectEntry.Loop = 0;
+	EffectEntry.Priority = EWyvrnHapticPriority::High;
+	EffectEntry.Targets.Add(EWyvrnHapticTarget::Hand);
+
+	FWyvrnHapticCommand Command;
+	Command.EventName = TEXT("Effect1");
+	Command.Effects.Add(EffectEntry);
+
+	UWyvrnHapticData* Data = NewObject<UWyvrnHapticData>(GetTransientPackage());
+	Data->Commands.Add(Command);
+
+	FMockInterhapticsRuntime Runtime;
+	FHapticVoicePool Pool(Runtime, 2);
+	Pool.Preload(*Data);
+
+	Pool.PlayCommand(Command, 0.0);
+
+	// A command whose interrupt list carries the "All" sentinel stops every active
+	// event through StopAll, rather than looking up an event named "All".
+	FWyvrnHapticCommand StopAll;
+	StopAll.EventName = TEXT("Stop");
+	StopAll.InterruptCommands.Add(TEXT("All"));
+	Pool.PlayCommand(StopAll, 0.0);
+
+	TestEqual(TEXT("\"All\" interrupt calls StopAll once"), Runtime.StoppedAllCount, 1);
 
 	return true;
 }
