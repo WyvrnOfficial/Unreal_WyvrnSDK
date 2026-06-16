@@ -1,5 +1,7 @@
 // Copyright 2017-2025 Razer, Inc. All Rights Reserved.
 
+using System.IO;
+
 namespace UnrealBuildTool.Rules
 {
 	public class WyvrnSDKPlugin : ModuleRules
@@ -59,7 +61,24 @@ namespace UnrealBuildTool.Rules
 				}
 				);
 
-
+			// On PS5 the haptics backend (InterhapticsRuntime) loads the Interhaptics HAR
+			// engine + DualSense provider PRX at runtime. The PRX are built separately from
+			// the Interhaptics HAR repo and dropped into Source/ThirdParty/InterhapticsHAR/PS5/bin.
+			// Stage them next to the title (loaded from /app0/sce_module/ - keep this in sync
+			// with the paths in InterhapticsRuntime.cpp). If the binaries are not present the
+			// runtime stays inert, so the title still builds and packages without them.
+			if (Target.Platform == UnrealTargetPlatform.PS5)
+			{
+				string PrxBinDir = Path.Combine(ModuleDirectory, "..", "ThirdParty", "InterhapticsHAR", "PS5", "bin");
+				foreach (string PrxName in new string[] { "HAR.prx", "DualSenseProvider.prx" })
+				{
+					string PrxPath = Path.Combine(PrxBinDir, PrxName);
+					if (File.Exists(PrxPath))
+					{
+						RuntimeDependencies.Add("$(TargetOutputDir)/sce_module/" + PrxName, PrxPath, StagedFileType.NonUFS);
+					}
+				}
+			}
 
         }
 	}

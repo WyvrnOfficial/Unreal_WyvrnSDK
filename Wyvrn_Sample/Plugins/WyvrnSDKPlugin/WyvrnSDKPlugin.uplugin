@@ -19,7 +19,8 @@
       "LoadingPhase": "PreLoadingScreen",
       "PlatformAllowList": [
         "Win32",
-        "Win64"
+        "Win64",
+        "PS5"
       ]
     },
     {
