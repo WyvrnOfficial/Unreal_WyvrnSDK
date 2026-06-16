@@ -7,6 +7,8 @@
 #include "HAL/IConsoleManager.h"
 #include "IDesktopPlatform.h"
 #include "Misc/MessageDialog.h"
+#include "Misc/PackageName.h"
+#include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "ToolMenus.h"
 
@@ -59,6 +61,21 @@ namespace
 			if (PickHapticFolder(Folder, Picked) && !Picked.IsEmpty())
 			{
 				Folder = Picked;
+			}
+		}
+
+		// A previous import already baked assets here: confirm before overwriting.
+		const FString DataPackageName = FPaths::Combine(Settings->OutputContentPath, TEXT("WyvrnHapticData"));
+		if (FPackageName::DoesPackageExist(DataPackageName))
+		{
+			const EAppReturnType::Type Overwrite = FMessageDialog::Open(
+				EAppMsgType::YesNo,
+				FText::Format(
+					LOCTEXT("ConfirmOverwrite", "WYVRN haptics already exist at:\n\n{0}\n\nReimport and overwrite them?"),
+					FText::FromString(Settings->OutputContentPath)));
+			if (Overwrite != EAppReturnType::Yes)
+			{
+				return;
 			}
 		}
 

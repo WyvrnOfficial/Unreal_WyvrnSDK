@@ -28,6 +28,7 @@ namespace UnrealBuildTool.Rules
 					"Json",
 					"JsonUtilities",
 					"UnrealEd",
+					"DeveloperToolSettings",
 					"AssetTools",
 					"AssetRegistry",
 					"Projects",

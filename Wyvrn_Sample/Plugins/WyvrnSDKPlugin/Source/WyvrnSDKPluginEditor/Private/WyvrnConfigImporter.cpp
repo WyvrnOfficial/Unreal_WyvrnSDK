@@ -9,6 +9,8 @@
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
 
+#include "Settings/ProjectPackagingSettings.h"
+
 #include "WyvrnConfigParser.h"
 #include "WyvrnHapticData.h"
 #include "WyvrnHapticEffect.h"
@@ -39,6 +41,45 @@ namespace
 		return true;
 	}
 
+	// Ensure the importer's output content path is force-cooked. The baked haptic
+	// data is loaded by path at runtime and referenced by nothing, so the cooker
+	// would otherwise skip it. Adding it to ProjectPackagingSettings here means any
+	// project that imports through this plugin gets it packaged without editing
+	// config by hand. Idempotent, and persisted to the project's DefaultGame.ini.
+	void EnsureAlwaysCookDirectory(const FString& ContentPath)
+	{
+		FString PackagePath = ContentPath;
+		PackagePath.RemoveFromEnd(TEXT("/"));
+		if (PackagePath.IsEmpty())
+		{
+			return;
+		}
+
+		UProjectPackagingSettings* Settings = GetMutableDefault<UProjectPackagingSettings>();
+		const bool bAlreadyListed = Settings->DirectoriesToAlwaysCook.ContainsByPredicate(
+			[&PackagePath](const FDirectoryPath& Dir) { return Dir.Path == PackagePath; });
+		if (bAlreadyListed)
+		{
+			return;
+		}
+
+		FDirectoryPath NewDirectory;
+		NewDirectory.Path = PackagePath;
+		Settings->DirectoriesToAlwaysCook.Add(NewDirectory);
+
+		// Persist to the project's DefaultGame.ini. TryUpdateDefaultConfigFile writes
+		// the whole settings object; UpdateSinglePropertyInConfigFile can't be used
+		// here - it rejects array-of-struct properties like DirectoriesToAlwaysCook.
+		if (Settings->TryUpdateDefaultConfigFile())
+		{
+			UE_LOG(LogWyvrnImport, Log, TEXT("WyvrnConfigImporter: added '%s' to DirectoriesToAlwaysCook so the baked haptics cook into packaged builds."), *PackagePath);
+		}
+		else
+		{
+			UE_LOG(LogWyvrnImport, Warning, TEXT("WyvrnConfigImporter: could not persist DirectoriesToAlwaysCook to DefaultGame.ini; add '%s' manually."), *PackagePath);
+		}
+	}
+
 	// Reads <SourceFolder>/<EffectName>.haps and saves it as a UWyvrnHapticEffect.
 	// Returns nullptr (OutError empty) when the file is simply absent, so the
 	// caller can skip that effect; OutError is set only on a hard failure.
@@ -59,8 +100,15 @@ namespace
 			OutError = FString::Printf(TEXT("WyvrnConfigImporter: could not create package '%s'."), *PackageName);
 			return nullptr;
 		}
+		// Fully load any existing on-disk asset so SavePackage doesn't reject a
+		// partially-loaded package, then reuse the object instead of colliding with it.
+		Package->FullyLoad();
 
-		UWyvrnHapticEffect* HapticEffect = NewObject<UWyvrnHapticEffect>(Package, FName(*EffectName), RF_Public | RF_Standalone);
+		UWyvrnHapticEffect* HapticEffect = FindObject<UWyvrnHapticEffect>(Package, *EffectName);
+		if (HapticEffect == nullptr)
+		{
+			HapticEffect = NewObject<UWyvrnHapticEffect>(Package, FName(*EffectName), RF_Public | RF_Standalone);
+		}
 		HapticEffect->Json = MoveTemp(Json);
 		HapticEffect->SourceName = EffectName;
 
@@ -100,8 +148,16 @@ UWyvrnHapticData* FWyvrnConfigImporter::ImportFromFolder(const FString& SourceFo
 		OutError = FString::Printf(TEXT("WyvrnConfigImporter: could not create package '%s'."), *DataPackageName);
 		return nullptr;
 	}
+	// Fully load any existing data asset so SavePackage doesn't reject a
+	// partially-loaded package, then reuse and clear it on reimport.
+	DataPackage->FullyLoad();
 
-	UWyvrnHapticData* Data = NewObject<UWyvrnHapticData>(DataPackage, FName(TEXT("WyvrnHapticData")), RF_Public | RF_Standalone);
+	UWyvrnHapticData* Data = FindObject<UWyvrnHapticData>(DataPackage, TEXT("WyvrnHapticData"));
+	if (Data == nullptr)
+	{
+		Data = NewObject<UWyvrnHapticData>(DataPackage, FName(TEXT("WyvrnHapticData")), RF_Public | RF_Standalone);
+	}
+	Data->Commands.Reset();
 
 	FString NormalizedSource = SourceFolder;
 	FPaths::NormalizeDirectoryName(NormalizedSource);
@@ -173,6 +229,8 @@ UWyvrnHapticData* FWyvrnConfigImporter::ImportFromFolder(const FString& SourceFo
 	{
 		return nullptr;
 	}
+
+	EnsureAlwaysCookDirectory(OutputContentPath);
 
 	UE_LOG(LogWyvrnImport, Log, TEXT("WyvrnConfigImporter: baked %d command(s) from '%s'."), Data->Commands.Num(), *SourceFolder);
 	return Data;
