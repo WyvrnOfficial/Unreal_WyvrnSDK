@@ -86,7 +86,7 @@ void FHapticVoicePool::PlayCommand(const FWyvrnHapticCommand& Command, double No
 		{
 			Runtime.AddTarget(Voice->MaterialId, Target);
 		}
-		Runtime.Play(Voice->MaterialId);
+		Runtime.Play(Voice->MaterialId, NowSeconds);
 
 		Voice->bLooping = EffectEntry.Loop < 0;
 		Voice->Priority = EffectEntry.Priority;

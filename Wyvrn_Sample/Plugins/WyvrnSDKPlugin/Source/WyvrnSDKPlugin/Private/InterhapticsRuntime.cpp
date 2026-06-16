@@ -8,78 +8,47 @@
 #include "WyvrnHapticTypes.h"
 #include "WyvrnHapticsLog.h"
 
-#include <kernel.h>
+// Defined by Build.cs: 1 when the HAR + provider import stubs are linked, 0 otherwise.
+#ifndef WITH_INTERHAPTICS_HAR
+#define WITH_INTERHAPTICS_HAR 0
+#endif
+
+#if WITH_INTERHAPTICS_HAR
 
 namespace
 {
-	using namespace WyvrnSDK::HAR;
-
-	// PRX module locations on the packaged title. These must match where Build.cs
-	// stages the modules (see the PS5 RuntimeDependencies block). The PRX are built
-	// separately from the Interhaptics HAR repo; when absent the runtime stays inert.
-	const char* const kHarModulePath = "/app0/sce_module/HAR.prx";
-	const char* const kProviderModulePath = "/app0/sce_module/DualSenseProvider.prx";
-
-	// HAR.prx (engine) entry points - all extern "C" in InterhapticsEngine[Internal].h.
-	typedef bool   (*FHar_Init)();
-	typedef void   (*FHar_Quit)();
-	typedef int    (*FHar_AddHM)(const char* /*json*/);
-	typedef void   (*FHar_PlayEvent)(int /*id*/, double, double, double);
-	typedef void   (*FHar_StopEvent)(int /*id*/);
-	typedef void   (*FHar_StopAllEvents)();
-	typedef void   (*FHar_AddTargetToEventMarshal)(int /*id*/, const FCommandData* /*targets*/, int /*size*/);
-	typedef void   (*FHar_ComputeAllEvents)(double /*time*/);
-	typedef void   (*FHar_SetEventIntensity)(int /*id*/, double /*intensity*/);
-	typedef void   (*FHar_SetEventLoop)(int /*id*/, int /*numLoops*/);
-	typedef double (*FHar_GetVibrationLength)(int /*id*/);
-
-	// DualSenseProvider.prx entry points - extern "C" in InterhapticsProvider_DualSensePS5.h.
-	typedef bool (*FProv_ProviderInit)();
-	typedef bool (*FProv_ProviderClean)();
-	typedef void (*FProv_ProviderRenderHaptics)();
-
-	template <typename FnPtr>
-	bool ResolveSymbol(SceKernelModule Module, const char* Symbol, FnPtr& OutPtr)
-	{
-		void* Addr = nullptr;
-		const int Result = sceKernelDlsym(Module, Symbol, &Addr);
-		if (Result != 0 || Addr == nullptr)
-		{
-			UE_LOG(LogWyvrnHaptics, Warning, TEXT("Interhaptics: failed to resolve symbol '%s' (0x%08x)."), ANSI_TO_TCHAR(Symbol), Result);
-			OutPtr = nullptr;
-			return false;
-		}
-		OutPtr = reinterpret_cast<FnPtr>(Addr);
-		return true;
-	}
+	using WyvrnSDK::HAR::FCommandData;
+	using WyvrnSDK::HAR::EOperator;
+	using WyvrnSDK::HAR::EGroupID;
+	using WyvrnSDK::HAR::ELateralFlag;
 }
 
-struct FInterhapticsRuntime::FImpl
+// HAR engine (HAR.prx) + DualSense provider (Provider_DualSensePS5.prx) entry points.
+// extern "C", resolved at link time against the *_stub_weak.a import libraries.
+// Declared locally so the third-party SDK headers are not vendored; the signatures
+// mirror InterhapticsEngine[Internal].h and InterhapticsProvider_DualSensePS5.h.
+extern "C"
 {
-	SceKernelModule HarModule = -1;
-	SceKernelModule ProviderModule = -1;
+	bool   Init();
+	void   Quit();
+	int    AddHM(const char* Content);
+	void   PlayEvent(int MaterialId, double VibrationOffset, double TextureOffset, double StiffnessOffset);
+	void   StopEvent(int MaterialId);
+	void   StopAllEvents();
+	void   AddTargetToEventMarshal(int MaterialId, FCommandData* Targets, int Size);
+	void   ComputeAllEvents(double CurrentTime);
+	void   SetEventIntensity(int MaterialId, double Intensity);
+	void   SetEventLoop(int MaterialId, int NumLoops);
+	double GetVibrationLength(int MaterialId);
 
-	FHar_Init                    Init = nullptr;
-	FHar_Quit                    Quit = nullptr;
-	FHar_AddHM                   AddHM = nullptr;
-	FHar_PlayEvent               PlayEvent = nullptr;
-	FHar_StopEvent               StopEvent = nullptr;
-	FHar_StopAllEvents           StopAllEvents = nullptr;
-	FHar_AddTargetToEventMarshal AddTargetToEventMarshal = nullptr;
-	FHar_ComputeAllEvents        ComputeAllEvents = nullptr;
-	FHar_SetEventIntensity       SetEventIntensity = nullptr;
-	FHar_SetEventLoop            SetEventLoop = nullptr;
-	FHar_GetVibrationLength      GetVibrationLength = nullptr;
-
-	FProv_ProviderInit           ProviderInit = nullptr;
-	FProv_ProviderClean          ProviderClean = nullptr;
-	FProv_ProviderRenderHaptics  ProviderRenderHaptics = nullptr;
-};
-
-FInterhapticsRuntime::FInterhapticsRuntime()
-	: Impl(MakeUnique<FImpl>())
-{
+	bool ProviderInit();
+	bool ProviderClean();
+	void ProviderRenderHaptics();
 }
+
+#endif // WITH_INTERHAPTICS_HAR
+
+FInterhapticsRuntime::FInterhapticsRuntime() = default;
 
 FInterhapticsRuntime::~FInterhapticsRuntime()
 {
@@ -93,82 +62,53 @@ bool FInterhapticsRuntime::Initialize()
 		return true;
 	}
 
-	// Load the engine and provider PRX modules. A missing module leaves the runtime inert.
-	Impl->HarModule = sceKernelLoadStartModule(kHarModulePath, 0, nullptr, 0, nullptr, nullptr);
-	if (Impl->HarModule < 0)
+#if WITH_INTERHAPTICS_HAR
+	// Load the delay-loaded PRX through UE's module loader (it resolves where they staged).
+	// A null handle means the PRX is absent, so the runtime stays inert; a valid handle binds
+	// the delay-load imports, making the direct calls below safe.
+	void* const HarHandle = FPlatformProcess::GetDllHandle(TEXT("HAR.prx"));
+	UE_LOG(LogWyvrnHaptics, Log, TEXT("Interhaptics: GetDllHandle('HAR.prx') -> %p"), HarHandle);
+	if (HarHandle == nullptr)
 	{
-		UE_LOG(LogWyvrnHaptics, Log, TEXT("Interhaptics: HAR module not found at %s; haptics disabled."), ANSI_TO_TCHAR(kHarModulePath));
+		UE_LOG(LogWyvrnHaptics, Warning, TEXT("Interhaptics: HAR.prx not loadable; haptics inert."));
 		return false;
 	}
 
-	Impl->ProviderModule = sceKernelLoadStartModule(kProviderModulePath, 0, nullptr, 0, nullptr, nullptr);
-	if (Impl->ProviderModule < 0)
+	void* const ProviderHandle = FPlatformProcess::GetDllHandle(TEXT("Provider_DualSensePS5.prx"));
+	UE_LOG(LogWyvrnHaptics, Log, TEXT("Interhaptics: GetDllHandle('Provider_DualSensePS5.prx') -> %p"), ProviderHandle);
+	if (ProviderHandle == nullptr)
 	{
-		UE_LOG(LogWyvrnHaptics, Log, TEXT("Interhaptics: DualSense provider not found at %s; haptics disabled."), ANSI_TO_TCHAR(kProviderModulePath));
-		Shutdown();
+		UE_LOG(LogWyvrnHaptics, Warning, TEXT("Interhaptics: Provider_DualSensePS5.prx not loadable; haptics inert."));
 		return false;
 	}
 
-	bool bResolved = true;
-	bResolved &= ResolveSymbol(Impl->HarModule, "Init", Impl->Init);
-	bResolved &= ResolveSymbol(Impl->HarModule, "Quit", Impl->Quit);
-	bResolved &= ResolveSymbol(Impl->HarModule, "AddHM", Impl->AddHM);
-	bResolved &= ResolveSymbol(Impl->HarModule, "PlayEvent", Impl->PlayEvent);
-	bResolved &= ResolveSymbol(Impl->HarModule, "StopEvent", Impl->StopEvent);
-	bResolved &= ResolveSymbol(Impl->HarModule, "StopAllEvents", Impl->StopAllEvents);
-	bResolved &= ResolveSymbol(Impl->HarModule, "AddTargetToEventMarshal", Impl->AddTargetToEventMarshal);
-	bResolved &= ResolveSymbol(Impl->HarModule, "ComputeAllEvents", Impl->ComputeAllEvents);
-	bResolved &= ResolveSymbol(Impl->HarModule, "SetEventIntensity", Impl->SetEventIntensity);
-	bResolved &= ResolveSymbol(Impl->HarModule, "SetEventLoop", Impl->SetEventLoop);
-	bResolved &= ResolveSymbol(Impl->HarModule, "GetVibrationLength", Impl->GetVibrationLength);
-
-	bResolved &= ResolveSymbol(Impl->ProviderModule, "ProviderInit", Impl->ProviderInit);
-	bResolved &= ResolveSymbol(Impl->ProviderModule, "ProviderClean", Impl->ProviderClean);
-	bResolved &= ResolveSymbol(Impl->ProviderModule, "ProviderRenderHaptics", Impl->ProviderRenderHaptics);
-
-	if (!bResolved)
+	const bool bEngineInit = Init();
+	const bool bProviderInit = ProviderInit();
+	UE_LOG(LogWyvrnHaptics, Log, TEXT("Interhaptics: Init()=%d ProviderInit()=%d"), bEngineInit, bProviderInit);
+	if (!bProviderInit)
 	{
-		UE_LOG(LogWyvrnHaptics, Warning, TEXT("Interhaptics: one or more entry points missing; haptics disabled."));
-		Shutdown();
-		return false;
-	}
-
-	// HAR Init() followed by the provider's ProviderInit().
-	Impl->Init();
-	if (!Impl->ProviderInit())
-	{
-		UE_LOG(LogWyvrnHaptics, Warning, TEXT("Interhaptics: ProviderInit() failed; haptics disabled."));
-		Shutdown();
+		UE_LOG(LogWyvrnHaptics, Warning, TEXT("Interhaptics: ProviderInit() failed; haptics inert."));
 		return false;
 	}
 
 	bAvailable = true;
 	UE_LOG(LogWyvrnHaptics, Log, TEXT("Interhaptics HAR runtime initialized."));
 	return true;
+#else
+	UE_LOG(LogWyvrnHaptics, Log, TEXT("Interhaptics: built without HAR stubs; haptics inert."));
+	return false;
+#endif
 }
 
 void FInterhapticsRuntime::Shutdown()
 {
-	if (Impl->ProviderClean != nullptr)
+#if WITH_INTERHAPTICS_HAR
+	if (bAvailable)
 	{
-		Impl->ProviderClean();
+		ProviderClean();
+		Quit();
 	}
-	if (Impl->Quit != nullptr)
-	{
-		Impl->Quit();
-	}
-
-	if (Impl->ProviderModule >= 0)
-	{
-		sceKernelStopUnloadModule(Impl->ProviderModule, 0, nullptr, 0, nullptr, nullptr);
-	}
-	if (Impl->HarModule >= 0)
-	{
-		sceKernelStopUnloadModule(Impl->HarModule, 0, nullptr, 0, nullptr, nullptr);
-	}
-
-	// Reset handles and resolved pointers so a subsequent Initialize() starts clean.
-	*Impl = FImpl();
+#endif
 	bAvailable = false;
 }
 
@@ -179,86 +119,102 @@ bool FInterhapticsRuntime::IsAvailable() const
 
 int32 FInterhapticsRuntime::AddMaterial(const FString& MaterialJson)
 {
-	if (!bAvailable)
+#if WITH_INTERHAPTICS_HAR
+	if (bAvailable)
 	{
-		return -1;
+		return AddHM(TCHAR_TO_UTF8(*MaterialJson));
 	}
-	return Impl->AddHM(TCHAR_TO_UTF8(*MaterialJson));
+#endif
+	return -1;
 }
 
 void FInterhapticsRuntime::SetIntensity(int32 MaterialId, float Intensity)
 {
+#if WITH_INTERHAPTICS_HAR
 	if (bAvailable)
 	{
-		Impl->SetEventIntensity(MaterialId, static_cast<double>(Intensity));
+		SetEventIntensity(MaterialId, static_cast<double>(Intensity));
 	}
+#endif
 }
 
 void FInterhapticsRuntime::SetLoop(int32 MaterialId, int32 NumLoops)
 {
+#if WITH_INTERHAPTICS_HAR
 	if (bAvailable)
 	{
-		Impl->SetEventLoop(MaterialId, NumLoops);
+		SetEventLoop(MaterialId, NumLoops);
 	}
+#endif
 }
 
 void FInterhapticsRuntime::AddTarget(int32 MaterialId, EWyvrnHapticTarget Target)
 {
-	if (!bAvailable)
+#if WITH_INTERHAPTICS_HAR
+	// The DualSense provider renders the hand region (left + right palm); others are ignored.
+	if (bAvailable && Target == EWyvrnHapticTarget::Hand)
 	{
-		return;
+		FCommandData Command{ EOperator::Plus, EGroupID::Hand, ELateralFlag::Global };
+		AddTargetToEventMarshal(MaterialId, &Command, 1);
 	}
-
-	// The DualSense provider only renders the hand region; other regions are ignored.
-	if (Target != EWyvrnHapticTarget::Hand)
-	{
-		return;
-	}
-
-	const FCommandData Command{ EOperator::Plus, EGroupID::Hand, ELateralFlag::Global };
-	Impl->AddTargetToEventMarshal(MaterialId, &Command, 1);
+#endif
 }
 
-void FInterhapticsRuntime::Play(int32 MaterialId)
+void FInterhapticsRuntime::Play(int32 MaterialId, double TimeSeconds)
 {
+#if WITH_INTERHAPTICS_HAR
 	if (bAvailable)
 	{
-		Impl->PlayEvent(MaterialId, 0.0, 0.0, 0.0);
+		// HAR computes playback position as (offset + curTime) and does NOT subtract the
+		// event's start time, so offset 0 renders at the absolute engine time - well past a
+		// ~1-2s effect's end => silence. Passing -TimeSeconds makes the position
+		// (curTime - TimeSeconds) = time since the press, so the effect plays from its start.
+		// (If HAR is fixed to subtract m_startingTime, this offset should revert to 0.)
+		PlayEvent(MaterialId, -TimeSeconds, -TimeSeconds, -TimeSeconds);
 	}
+#endif
 }
 
 void FInterhapticsRuntime::Stop(int32 MaterialId)
 {
+#if WITH_INTERHAPTICS_HAR
 	if (bAvailable)
 	{
-		Impl->StopEvent(MaterialId);
+		StopEvent(MaterialId);
 	}
+#endif
 }
 
 void FInterhapticsRuntime::StopAll()
 {
+#if WITH_INTERHAPTICS_HAR
 	if (bAvailable)
 	{
-		Impl->StopAllEvents();
+		StopAllEvents();
 	}
+#endif
 }
 
 double FInterhapticsRuntime::GetLength(int32 MaterialId) const
 {
-	if (!bAvailable)
+#if WITH_INTERHAPTICS_HAR
+	if (bAvailable)
 	{
-		return 0.0;
+		return GetVibrationLength(MaterialId);
 	}
-	return Impl->GetVibrationLength(MaterialId);
+#endif
+	return 0.0;
 }
 
 void FInterhapticsRuntime::Render(double TimeSeconds)
 {
+#if WITH_INTERHAPTICS_HAR
 	if (bAvailable)
 	{
-		Impl->ComputeAllEvents(TimeSeconds);
-		Impl->ProviderRenderHaptics();
+		ComputeAllEvents(TimeSeconds);
+		ProviderRenderHaptics();
 	}
+#endif
 }
 
 #endif // PLATFORM_PS5

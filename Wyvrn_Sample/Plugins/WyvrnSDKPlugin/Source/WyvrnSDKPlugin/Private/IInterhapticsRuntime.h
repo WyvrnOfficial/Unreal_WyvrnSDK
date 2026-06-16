@@ -29,8 +29,13 @@ public:
 	virtual void SetLoop(int32 MaterialId, int32 NumLoops) = 0;
 	/** AddTargetToEvent. The implementation maps the region to provider endpoints. */
 	virtual void AddTarget(int32 MaterialId, EWyvrnHapticTarget Target) = 0;
-	/** PlayEvent(id, 0, 0, 0). Restarts the event if it is already playing. */
-	virtual void Play(int32 MaterialId) = 0;
+	/**
+	 * Plays the event anchored to TimeSeconds (the same clock fed to Render()).
+	 * Restarts the event if it is already playing. HAR renders an event at
+	 * (current time - play offset), so the implementation passes -TimeSeconds as the
+	 * offset; otherwise the effect renders at the absolute engine time, past its end.
+	 */
+	virtual void Play(int32 MaterialId, double TimeSeconds) = 0;
 	/** StopEvent. */
 	virtual void Stop(int32 MaterialId) = 0;
 	/** StopAllEvents. */

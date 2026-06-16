@@ -9,19 +9,20 @@
 #include "IInterhapticsRuntime.h"
 
 /**
- * PS5 concrete IInterhapticsRuntime. Binds the Interhaptics HAR engine (HAR.prx)
- * and the DualSense provider (DualSenseProvider.prx) by loading both PRX modules
- * at runtime and resolving their extern "C" entry points.
+ * PS5 concrete IInterhapticsRuntime. Calls the Interhaptics HAR engine (HAR.prx)
+ * and the DualSense provider (Provider_DualSensePS5.prx) directly; their entry
+ * points are bound through the *_stub_weak.a import libraries, and the loader
+ * resolves the PRX from /app0/sce_module/.
  *
- * When the modules are absent (or any entry point fails to resolve) the runtime
- * stays inert: Initialize() returns false, IsAvailable() returns false, and every
- * call is a no-op. This lets the title ship and run without the HAR PRX present.
+ * Inert when the PRX are absent (weak import => the title still launches) or when
+ * the plugin was built without the stubs (WITH_INTERHAPTICS_HAR == 0): Initialize()
+ * returns false, IsAvailable() returns false, and every call is a no-op.
  */
 class FInterhapticsRuntime final : public IInterhapticsRuntime
 {
 public:
 	FInterhapticsRuntime();
-	virtual ~FInterhapticsRuntime();
+	virtual ~FInterhapticsRuntime() override;
 
 	// IInterhapticsRuntime
 	virtual bool Initialize() override;
@@ -31,18 +32,13 @@ public:
 	virtual void SetIntensity(int32 MaterialId, float Intensity) override;
 	virtual void SetLoop(int32 MaterialId, int32 NumLoops) override;
 	virtual void AddTarget(int32 MaterialId, EWyvrnHapticTarget Target) override;
-	virtual void Play(int32 MaterialId) override;
+	virtual void Play(int32 MaterialId, double TimeSeconds) override;
 	virtual void Stop(int32 MaterialId) override;
 	virtual void StopAll() override;
 	virtual double GetLength(int32 MaterialId) const override;
 	virtual void Render(double TimeSeconds) override;
 
 private:
-	// Holds the PS5 module handles and resolved function pointers, keeping the
-	// PS5 SDK headers out of this header.
-	struct FImpl;
-	TUniquePtr<FImpl> Impl;
-
 	bool bAvailable = false;
 };
 

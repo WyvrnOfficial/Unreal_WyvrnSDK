@@ -54,6 +54,7 @@ bool FInterhapticsHapticBackend::Initialize()
 	Pool = MakeUnique<FHapticVoicePool>(*Runtime, kVoicesPerEffect);
 	if (Data.IsValid())
 	{
+		UE_LOG(LogWyvrnHaptics, Log, TEXT("WyvrnSDK: loaded haptic data with %d command(s); preloading effects."), Data->Commands.Num());
 		Pool->Preload(*Data);
 	}
 

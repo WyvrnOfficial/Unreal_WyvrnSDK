@@ -63,20 +63,50 @@ namespace UnrealBuildTool.Rules
 
 			// On PS5 the haptics backend (InterhapticsRuntime) loads the Interhaptics HAR
 			// engine + DualSense provider PRX at runtime. The PRX are built separately from
-			// the Interhaptics HAR repo and dropped into Source/ThirdParty/InterhapticsHAR/PS5/bin.
+			// the Interhaptics HAR repo and dropped into Source/ThirdParty/Interhaptics/PS5/bin.
 			// Stage them next to the title (loaded from /app0/sce_module/ - keep this in sync
 			// with the paths in InterhapticsRuntime.cpp). If the binaries are not present the
 			// runtime stays inert, so the title still builds and packages without them.
 			if (Target.Platform == UnrealTargetPlatform.PS5)
 			{
-				string PrxBinDir = Path.Combine(ModuleDirectory, "..", "ThirdParty", "InterhapticsHAR", "PS5", "bin");
-				foreach (string PrxName in new string[] { "HAR.prx", "DualSenseProvider.prx" })
+				string PrxBinDir = Path.Combine(ModuleDirectory, "..", "ThirdParty", "Interhaptics", "PS5", "bin");
+
+				// Link the HAR + provider import stubs when present. The weak stubs let the
+				// title launch (and the runtime stay inert) when the PRX are absent, so the
+				// libraries stay optional to build. WITH_INTERHAPTICS_HAR gates the calls.
+				string HarStub = Path.Combine(PrxBinDir, "HAR_stub_weak.a");
+				string ProviderStub = Path.Combine(PrxBinDir, "Provider_DualSensePS5_stub_weak.a");
+				if (File.Exists(HarStub) && File.Exists(ProviderStub))
 				{
-					string PrxPath = Path.Combine(PrxBinDir, PrxName);
-					if (File.Exists(PrxPath))
+					// Link the import stubs (regular + weak) so the HAR/provider entry points resolve.
+					foreach (string Stub in new string[] { "HAR_stub.a", "Provider_DualSensePS5_stub.a", "HAR_stub_weak.a", "Provider_DualSensePS5_stub_weak.a" })
 					{
-						RuntimeDependencies.Add("$(TargetOutputDir)/sce_module/" + PrxName, PrxPath, StagedFileType.NonUFS);
+						string StubPath = Path.Combine(PrxBinDir, Stub);
+						if (File.Exists(StubPath))
+						{
+							PublicAdditionalLibraries.Add(StubPath);
+						}
 					}
+
+					// Delay-load the PRX (bind on load at runtime, not as launch-time NEEDED deps)
+					// and stage them in-place; the runtime loads them via FPlatformProcess::GetDllHandle
+					// and the loader resolves them on demand - so they don't need to sit in the
+					// package-root /app0/sce_module/.
+					foreach (string Prx in new string[] { "HAR.prx", "Provider_DualSensePS5.prx" })
+					{
+						string PrxPath = Path.Combine(PrxBinDir, Prx);
+						if (File.Exists(PrxPath))
+						{
+							PublicDelayLoadDLLs.Add(Prx);
+							RuntimeDependencies.Add(PrxPath);
+						}
+					}
+
+					PublicDefinitions.Add("WITH_INTERHAPTICS_HAR=1");
+				}
+				else
+				{
+					PublicDefinitions.Add("WITH_INTERHAPTICS_HAR=0");
 				}
 			}
 

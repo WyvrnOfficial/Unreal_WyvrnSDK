@@ -28,7 +28,7 @@ namespace
 		virtual void SetIntensity(int32 MaterialId, float Intensity) override {}
 		virtual void SetLoop(int32 MaterialId, int32 NumLoops) override {}
 		virtual void AddTarget(int32 MaterialId, EWyvrnHapticTarget Target) override {}
-		virtual void Play(int32 MaterialId) override { Played.Add(MaterialId); }
+		virtual void Play(int32 MaterialId, double TimeSeconds) override { Played.Add(MaterialId); }
 		virtual void Stop(int32 MaterialId) override { Stopped.Add(MaterialId); }
 		virtual void StopAll() override { ++StoppedAllCount; }
 		virtual double GetLength(int32 MaterialId) const override { return 1.0; }
