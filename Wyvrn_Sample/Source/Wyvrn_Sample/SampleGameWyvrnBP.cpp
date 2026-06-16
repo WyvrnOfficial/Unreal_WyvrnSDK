@@ -52,12 +52,21 @@ void USampleGameWyvrnBP::SampleGameSampleStart()
 			break;
 		}
 	}
+#elif PLATFORM_PS5
+	if (!UWyvrnSDKPluginBPLibrary::IsInitialized())
+	{
+		// PS5 brings up HAR + the DualSense provider through the plugin's
+		// Interhaptics backend; the Razer app info is unused there.
+		FWyvrnSDKAppInfoType AppInfo;
+		const int32 Result = UWyvrnSDKPluginBPLibrary::WyvrnSDKInitSDK(AppInfo);
+		UE_LOG(LogWyvrnSampleGame, Log, TEXT("WyvrnSDK PS5 init result: %d"), Result);
+	}
 #endif
 }
 
 void USampleGameWyvrnBP::SampleGameSampleEnd()
 {
-#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
+#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE) || PLATFORM_PS5
 	UWyvrnSDKPluginBPLibrary::WyvrnSDKUnInit();
 #endif
 }
