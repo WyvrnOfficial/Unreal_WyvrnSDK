@@ -7,10 +7,15 @@
 #include "WyvrnHapticData.h"
 #include "WyvrnHapticTypes.h"
 #include "WyvrnHapticsLog.h"
+#include "WyvrnHapticsStats.h"
 
 #include "UObject/UObjectGlobals.h"
 
 DEFINE_LOG_CATEGORY(LogWyvrnHaptics);
+
+DECLARE_CYCLE_STAT(TEXT("Backend Tick"), STAT_WyvrnHaptics_Tick, STATGROUP_WyvrnHaptics);
+DECLARE_CYCLE_STAT(TEXT("Set Event (dispatch)"), STAT_WyvrnHaptics_SetEvent, STATGROUP_WyvrnHaptics);
+DECLARE_DWORD_COUNTER_STAT(TEXT("Active Voices"), STAT_WyvrnHaptics_ActiveVoices, STATGROUP_WyvrnHaptics);
 
 namespace
 {
@@ -96,6 +101,8 @@ bool FInterhapticsHapticBackend::IsInitialized() const
 
 void FInterhapticsHapticBackend::SetEventName(const FString& EventName)
 {
+	SCOPE_CYCLE_COUNTER(STAT_WyvrnHaptics_SetEvent);
+
 	if (!bInitialized || !Data.IsValid() || !Pool.IsValid())
 	{
 		return;
@@ -109,12 +116,15 @@ void FInterhapticsHapticBackend::SetEventName(const FString& EventName)
 
 bool FInterhapticsHapticBackend::Tick(float DeltaTime)
 {
+	SCOPE_CYCLE_COUNTER(STAT_WyvrnHaptics_Tick);
+
 	CurrentTimeSeconds += DeltaTime;
 	// Reclaim finished voices and re-arbitrate BEFORE rendering, so a dominant event
 	// ending this frame un-ducks the voice it was masking in the same frame (no 1-frame gap).
 	if (Pool.IsValid())
 	{
 		Pool->Tick(CurrentTimeSeconds);
+		SET_DWORD_STAT(STAT_WyvrnHaptics_ActiveVoices, Pool->GetActiveVoiceCount());
 	}
 	if (Runtime.IsValid())
 	{

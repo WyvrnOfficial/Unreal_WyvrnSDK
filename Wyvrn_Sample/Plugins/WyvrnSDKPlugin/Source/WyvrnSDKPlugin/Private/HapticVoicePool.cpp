@@ -205,6 +205,22 @@ FHapticVoicePool::FVoice* FHapticVoicePool::AcquireVoice(TArray<FVoice>& Voices,
 	return Candidate;
 }
 
+int32 FHapticVoicePool::GetActiveVoiceCount() const
+{
+	int32 Count = 0;
+	for (const TPair<FPoolKey, TArray<FVoice>>& Pair : VoicesByPool)
+	{
+		for (const FVoice& Voice : Pair.Value)
+		{
+			if (Voice.bActive)
+			{
+				++Count;
+			}
+		}
+	}
+	return Count;
+}
+
 FHapticVoicePool::FVoice* FHapticVoicePool::FindVoice(int32 MaterialId)
 {
 	for (TPair<FPoolKey, TArray<FVoice>>& Pair : VoicesByPool)

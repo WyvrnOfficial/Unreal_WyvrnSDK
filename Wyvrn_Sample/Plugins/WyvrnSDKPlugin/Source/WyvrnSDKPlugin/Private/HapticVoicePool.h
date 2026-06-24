@@ -44,6 +44,9 @@ public:
 	/** Reclaims voices whose playback length has elapsed. Call once per frame. */
 	void Tick(double NowSeconds);
 
+	/** Number of voices currently playing across all pools (for profiling). */
+	int32 GetActiveVoiceCount() const;
+
 private:
 	struct FVoice
 	{

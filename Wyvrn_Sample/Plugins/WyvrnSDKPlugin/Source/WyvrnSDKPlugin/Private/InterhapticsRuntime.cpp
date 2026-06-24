@@ -7,6 +7,7 @@
 #include "InterhapticsHARTypes.h"
 #include "WyvrnHapticTypes.h"
 #include "WyvrnHapticsLog.h"
+#include "WyvrnHapticsStats.h"
 
 // Defined by Build.cs: 1 when the HAR + provider import stubs are linked, 0 otherwise.
 #ifndef WITH_INTERHAPTICS_HAR
@@ -47,6 +48,8 @@ extern "C"
 }
 
 #endif // WITH_INTERHAPTICS_HAR
+
+DECLARE_CYCLE_STAT(TEXT("HAR Render"), STAT_WyvrnHaptics_Render, STATGROUP_WyvrnHaptics);
 
 FInterhapticsRuntime::FInterhapticsRuntime() = default;
 
@@ -219,6 +222,7 @@ void FInterhapticsRuntime::Render(double TimeSeconds)
 #if WITH_INTERHAPTICS_HAR
 	if (bAvailable)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_WyvrnHaptics_Render);
 		ComputeAllEvents(TimeSeconds);
 		ProviderRenderHaptics();
 	}
