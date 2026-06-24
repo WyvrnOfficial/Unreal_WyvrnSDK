@@ -23,15 +23,65 @@ enum class EWyvrnHapticTarget : uint8
 };
 
 /**
- * Playback priority from the WYVRN.config "Priority". Drives voice stealing when
- * the haptic voice pool is saturated.
+ * Lateral side of a target region, mirroring the WYVRN.config Targeting
+ * "Spatialization". On the DualSense, Global drives both palms, Left/Right one.
+ * Maps to the HAR ELateralFlag (Global/Left/Right) at play time.
+ */
+UENUM(BlueprintType)
+enum class EWyvrnHapticSide : uint8
+{
+	Global,
+	Left,
+	Right
+};
+
+/**
+ * Playback priority from the WYVRN.config "Priority". Five levels mirroring the
+ * authoring tool. A live event silences every lower-priority event for its
+ * duration (priority ducking), and drives voice stealing when an effect's voice
+ * pool is saturated.
  */
 UENUM(BlueprintType)
 enum class EWyvrnHapticPriority : uint8
 {
+	VeryLow,
 	Low,
 	Medium,
-	High
+	High,
+	VeryHigh
+};
+
+/**
+ * How an event mixes against other live events of equal priority, from the
+ * WYVRN.config "Mixing". Merge plays them together (additive); Override makes the
+ * newer event play alone and silences the older equal-priority one until it ends.
+ */
+UENUM(BlueprintType)
+enum class EWyvrnHapticMixing : uint8
+{
+	Merge,
+	Override
+};
+
+/**
+ * One body-region target of a haptic event with its lateral side (a WYVRN.config
+ * Targeting entry). On PS5 only the hand region is rendered.
+ */
+USTRUCT(BlueprintType)
+struct WYVRNSDKPLUGIN_API FWyvrnHapticTarget
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
+	EWyvrnHapticTarget Region = EWyvrnHapticTarget::Hand;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
+	EWyvrnHapticSide Side = EWyvrnHapticSide::Global;
+
+	bool operator==(const FWyvrnHapticTarget& Other) const
+	{
+		return Region == Other.Region && Side == Other.Side;
+	}
 };
 
 /**
@@ -58,9 +108,13 @@ struct WYVRNSDKPLUGIN_API FWyvrnHapticEvent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
 	EWyvrnHapticPriority Priority = EWyvrnHapticPriority::High;
 
-	/** Body regions this effect targets. Translated to HAR targets at play time. */
+	/** Mixing against other live equal-priority events (WYVRN.config Mixing). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
-	TArray<EWyvrnHapticTarget> Targets;
+	EWyvrnHapticMixing Mixing = EWyvrnHapticMixing::Merge;
+
+	/** Body regions (with side) this effect targets. Translated to HAR targets at play time. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
+	TArray<FWyvrnHapticTarget> Targets;
 };
 
 /**
@@ -77,7 +131,11 @@ struct WYVRNSDKPLUGIN_API FWyvrnHapticCommand
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
 	TArray<FWyvrnHapticEvent> Effects;
 
-	/** Events whose playback stops when this command fires (WYVRN.config Interrupts_Commands). */
+	/** Literal event names whose playback stops when this command fires (array form of Interrupts_Commands). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
 	TArray<FString> InterruptCommands;
+
+	/** Stop every active event when this command fires (the bare-string "All" form of Interrupts_Commands). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
+	bool bInterruptAll = false;
 };

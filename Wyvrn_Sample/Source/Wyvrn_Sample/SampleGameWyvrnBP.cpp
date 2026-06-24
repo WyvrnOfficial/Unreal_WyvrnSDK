@@ -163,3 +163,71 @@ void USampleGameWyvrnBP::SampleGameShowEffect15()
 }
 
 #pragma endregion
+
+#pragma region PS5 Haptics Debug Harness
+
+// These mirror the Debug_* commands authored in the debug WYVRN.config. They
+// drive the PS5 haptics backend exactly as a game would (SetEventName), so the
+// transcode-to-Interhaptics behaviour can be felt on a DualSense.
+
+void USampleGameWyvrnBP::SampleGameDebugLoopA()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_LoopA");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugLoopB()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_LoopB");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugStopA()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_StopA");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugStopAll()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_StopAll");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugHandGlobal()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_HandGlobal");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugHandLeft()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_HandLeft");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugHandRight()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_HandRight");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugPriorityLow()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_PriorityLow");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugPriorityHigh()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_PriorityHigh");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugEqualA()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_EqualA");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugMergeB()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_MergeB");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugOverrideB()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_OverrideB");
+}
+
+#pragma endregion

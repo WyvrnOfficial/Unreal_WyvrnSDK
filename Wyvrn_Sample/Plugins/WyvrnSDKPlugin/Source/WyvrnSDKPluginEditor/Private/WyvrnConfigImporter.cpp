@@ -170,17 +170,26 @@ UWyvrnHapticData* FWyvrnConfigImporter::ImportFromFolder(const FString& SourceFo
 		FWyvrnHapticCommand Command;
 		Command.EventName = ParsedCommand.EventName;
 		Command.InterruptCommands = ParsedCommand.InterruptCommands;
+		Command.bInterruptAll = ParsedCommand.bInterruptAll;
 
 		for (const FWyvrnParsedEffect& ParsedEffect : ParsedCommand.Effects)
 		{
-			TArray<EWyvrnHapticTarget> Targets;
+			TArray<FWyvrnHapticTarget> Targets;
 			float Gain = 1.0f;
 			bool bHasControllerTarget = false;
 			for (const FWyvrnParsedTargeting& Targeting : ParsedEffect.Targeting)
 			{
 				if (IsDualSenseTarget(Targeting.Target))
 				{
-					Targets.AddUnique(Targeting.Target);
+					// Preserve the lateral side; dedup on the (region, side) pair so
+					// Hand-Left and Hand-Right both survive but duplicates collapse.
+					FWyvrnHapticTarget Target;
+					Target.Region = Targeting.Target;
+					Target.Side = Targeting.Side;
+					Targets.AddUnique(Target);
+					// HAR intensity is per-event (one material id per effect+target-set), so an
+					// event carries a single Gain: take the first controller target's. Per-side
+					// gains (e.g. Left 0.5 / Right 1.0) collapse to this one value.
 					if (!bHasControllerTarget)
 					{
 						Gain = Targeting.Gain;
@@ -213,11 +222,12 @@ UWyvrnHapticData* FWyvrnConfigImporter::ImportFromFolder(const FString& SourceFo
 			EffectEntry.Gain = Gain;
 			EffectEntry.Loop = ParsedEffect.Loop;
 			EffectEntry.Priority = ParsedEffect.Priority;
+			EffectEntry.Mixing = ParsedEffect.Mixing;
 			EffectEntry.Targets = MoveTemp(Targets);
 			Command.Effects.Add(MoveTemp(EffectEntry));
 		}
 
-		if (Command.Effects.Num() > 0 || Command.InterruptCommands.Num() > 0)
+		if (Command.Effects.Num() > 0 || Command.InterruptCommands.Num() > 0 || Command.bInterruptAll)
 		{
 			Data->Commands.Add(MoveTemp(Command));
 		}

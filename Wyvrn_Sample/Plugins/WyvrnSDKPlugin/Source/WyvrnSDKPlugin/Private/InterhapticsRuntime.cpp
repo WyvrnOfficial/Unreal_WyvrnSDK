@@ -148,13 +148,21 @@ void FInterhapticsRuntime::SetLoop(int32 MaterialId, int32 NumLoops)
 #endif
 }
 
-void FInterhapticsRuntime::AddTarget(int32 MaterialId, EWyvrnHapticTarget Target)
+void FInterhapticsRuntime::AddTarget(int32 MaterialId, EWyvrnHapticTarget Region, EWyvrnHapticSide Side)
 {
 #if WITH_INTERHAPTICS_HAR
 	// The DualSense provider renders the hand region (left + right palm); others are ignored.
-	if (bAvailable && Target == EWyvrnHapticTarget::Hand)
+	if (bAvailable && Region == EWyvrnHapticTarget::Hand)
 	{
-		FCommandData Command{ EOperator::Plus, EGroupID::Hand, ELateralFlag::Global };
+		ELateralFlag LateralFlag = ELateralFlag::Global;
+		switch (Side)
+		{
+		case EWyvrnHapticSide::Left:  LateralFlag = ELateralFlag::Left;  break;
+		case EWyvrnHapticSide::Right: LateralFlag = ELateralFlag::Right; break;
+		default:                      LateralFlag = ELateralFlag::Global; break;
+		}
+
+		FCommandData Command{ EOperator::Plus, EGroupID::Hand, LateralFlag };
 		AddTargetToEventMarshal(MaterialId, &Command, 1);
 	}
 #endif

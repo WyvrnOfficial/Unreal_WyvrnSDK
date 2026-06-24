@@ -7,10 +7,11 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogWyvrnImport, Log, All);
 
-/** One body-region target of a haptic event, with its own gain (WYVRN.config Targeting entry). */
+/** One body-region target of a haptic event, with its side and gain (WYVRN.config Targeting entry). */
 struct FWyvrnParsedTargeting
 {
 	EWyvrnHapticTarget Target = EWyvrnHapticTarget::Hand;
+	EWyvrnHapticSide Side = EWyvrnHapticSide::Global;
 	float Gain = 1.0f;
 };
 
@@ -20,6 +21,7 @@ struct FWyvrnParsedEffect
 	FString EffectName;
 	int32 Loop = 0;
 	EWyvrnHapticPriority Priority = EWyvrnHapticPriority::High;
+	EWyvrnHapticMixing Mixing = EWyvrnHapticMixing::Merge;
 	TArray<FWyvrnParsedTargeting> Targeting;
 };
 
@@ -28,7 +30,10 @@ struct FWyvrnParsedCommand
 {
 	FString EventName;
 	TArray<FWyvrnParsedEffect> Effects;
+	/** Literal event names to stop (array form of Interrupts_Commands). */
 	TArray<FString> InterruptCommands;
+	/** True when Interrupts_Commands was the bare string "All" (stop every event). */
+	bool bInterruptAll = false;
 };
 
 /**

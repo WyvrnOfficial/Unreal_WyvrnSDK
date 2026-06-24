@@ -23,15 +23,38 @@ namespace
 
 	EWyvrnHapticPriority ParsePriority(const FString& In)
 	{
+		if (In.Equals(TEXT("VeryLow"), ESearchCase::IgnoreCase)) { return EWyvrnHapticPriority::VeryLow; }
 		if (In.Equals(TEXT("Low"), ESearchCase::IgnoreCase)) { return EWyvrnHapticPriority::Low; }
 		if (In.Equals(TEXT("Medium"), ESearchCase::IgnoreCase)) { return EWyvrnHapticPriority::Medium; }
-		return EWyvrnHapticPriority::High;
+		if (In.Equals(TEXT("High"), ESearchCase::IgnoreCase)) { return EWyvrnHapticPriority::High; }
+		if (In.Equals(TEXT("VeryHigh"), ESearchCase::IgnoreCase)) { return EWyvrnHapticPriority::VeryHigh; }
+		// Unknown/missing Priority defaults to Medium: a malformed event must not dominate,
+		// since priority ducking silences every event below the highest one playing.
+		if (!In.IsEmpty())
+		{
+			UE_LOG(LogWyvrnImport, Warning, TEXT("WyvrnConfigParser: unknown Priority '%s'; defaulting to Medium."), *In);
+		}
+		return EWyvrnHapticPriority::Medium;
 	}
 
-	// Interrupts_Commands lists the events to stop when this command fires. It may
-	// be an array of event names, a single event name, or the string "All" (stop
-	// everything). Captured verbatim here; the runtime interprets "All".
-	void ParseInterruptCommands(const TSharedPtr<FJsonObject>& CommandObject, TArray<FString>& OutCommands)
+	EWyvrnHapticMixing ParseMixing(const FString& In)
+	{
+		if (In.Equals(TEXT("Override"), ESearchCase::IgnoreCase)) { return EWyvrnHapticMixing::Override; }
+		return EWyvrnHapticMixing::Merge;
+	}
+
+	EWyvrnHapticSide ParseSpatialization(const FString& In)
+	{
+		if (In.Equals(TEXT("Left"), ESearchCase::IgnoreCase)) { return EWyvrnHapticSide::Left; }
+		if (In.Equals(TEXT("Right"), ESearchCase::IgnoreCase)) { return EWyvrnHapticSide::Right; }
+		return EWyvrnHapticSide::Global;
+	}
+
+	// Interrupts_Commands says what to stop when this command fires. WYVRN semantics:
+	// the bare string "All" stops EVERY event, but an ARRAY (even one containing "All")
+	// is a list of literal event names to stop. So an array element "All" means an event
+	// literally named "All", not the stop-everything sentinel.
+	void ParseInterruptCommands(const TSharedPtr<FJsonObject>& CommandObject, TArray<FString>& OutCommands, bool& bOutInterruptAll)
 	{
 		const TArray<TSharedPtr<FJsonValue>>* AsArray = nullptr;
 		if (CommandObject->TryGetArrayField(TEXT("Interrupts_Commands"), AsArray))
@@ -50,7 +73,14 @@ namespace
 		FString Single;
 		if (CommandObject->TryGetStringField(TEXT("Interrupts_Commands"), Single) && !Single.IsEmpty())
 		{
-			OutCommands.Add(Single);
+			if (Single.Equals(TEXT("All"), ESearchCase::IgnoreCase))
+			{
+				bOutInterruptAll = true;
+			}
+			else
+			{
+				OutCommands.Add(Single);
+			}
 		}
 	}
 
@@ -63,6 +93,10 @@ namespace
 		FString PriorityString;
 		EventObject->TryGetStringField(TEXT("Priority"), PriorityString);
 		Effect.Priority = ParsePriority(PriorityString);
+
+		FString MixingString;
+		EventObject->TryGetStringField(TEXT("Mixing"), MixingString);
+		Effect.Mixing = ParseMixing(MixingString);
 
 		const TArray<TSharedPtr<FJsonValue>>* Targeting = nullptr;
 		if (EventObject->TryGetArrayField(TEXT("Targeting"), Targeting))
@@ -90,8 +124,12 @@ namespace
 				double Gain = 1.0;
 				TargetingObject->TryGetNumberField(TEXT("Gain"), Gain);
 
+				FString SpatializationString;
+				TargetingObject->TryGetStringField(TEXT("Spatialization"), SpatializationString);
+
 				FWyvrnParsedTargeting ParsedTargeting;
 				ParsedTargeting.Target = Target;
+				ParsedTargeting.Side = ParseSpatialization(SpatializationString);
 				ParsedTargeting.Gain = static_cast<float>(Gain);
 				Effect.Targeting.Add(ParsedTargeting);
 			}
@@ -152,10 +190,11 @@ bool FWyvrnConfigParser::Parse(const FString& ConfigJson, TArray<FWyvrnParsedCom
 			}
 		}
 
-		ParseInterruptCommands(CommandObject, Parsed.InterruptCommands);
+		ParseInterruptCommands(CommandObject, Parsed.InterruptCommands, Parsed.bInterruptAll);
 
-		// Drop chroma-only / empty commands: they produce no haptics on PS5.
-		if (Parsed.Effects.Num() > 0 || Parsed.InterruptCommands.Num() > 0)
+		// Drop chroma-only / empty commands: they produce no haptics on PS5. A stop-all
+		// command has no effects and no named interrupts, so keep it via bInterruptAll.
+		if (Parsed.Effects.Num() > 0 || Parsed.InterruptCommands.Num() > 0 || Parsed.bInterruptAll)
 		{
 			OutCommands.Add(MoveTemp(Parsed));
 		}

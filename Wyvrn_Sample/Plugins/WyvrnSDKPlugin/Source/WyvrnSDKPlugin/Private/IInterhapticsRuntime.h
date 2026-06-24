@@ -27,8 +27,8 @@ public:
 	virtual void SetIntensity(int32 MaterialId, float Intensity) = 0;
 	/** SetEventLoop: 0/1 = one shot, < 0 = infinite. */
 	virtual void SetLoop(int32 MaterialId, int32 NumLoops) = 0;
-	/** AddTargetToEvent. The implementation maps the region to provider endpoints. */
-	virtual void AddTarget(int32 MaterialId, EWyvrnHapticTarget Target) = 0;
+	/** AddTargetToEvent. The implementation maps the region + lateral side to provider endpoints. */
+	virtual void AddTarget(int32 MaterialId, EWyvrnHapticTarget Region, EWyvrnHapticSide Side) = 0;
 	/**
 	 * Plays the event anchored to TimeSeconds (the same clock fed to Render()).
 	 * Restarts the event if it is already playing. HAR renders an event at

@@ -31,7 +31,7 @@ public:
 	virtual int32 AddMaterial(const FString& MaterialJson) override;
 	virtual void SetIntensity(int32 MaterialId, float Intensity) override;
 	virtual void SetLoop(int32 MaterialId, int32 NumLoops) override;
-	virtual void AddTarget(int32 MaterialId, EWyvrnHapticTarget Target) override;
+	virtual void AddTarget(int32 MaterialId, EWyvrnHapticTarget Region, EWyvrnHapticSide Side) override;
 	virtual void Play(int32 MaterialId, double TimeSeconds) override;
 	virtual void Stop(int32 MaterialId) override;
 	virtual void StopAll() override;

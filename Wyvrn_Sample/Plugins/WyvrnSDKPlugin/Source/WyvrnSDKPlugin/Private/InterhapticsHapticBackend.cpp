@@ -110,13 +110,15 @@ void FInterhapticsHapticBackend::SetEventName(const FString& EventName)
 bool FInterhapticsHapticBackend::Tick(float DeltaTime)
 {
 	CurrentTimeSeconds += DeltaTime;
-	if (Runtime.IsValid())
-	{
-		Runtime->Render(CurrentTimeSeconds);
-	}
+	// Reclaim finished voices and re-arbitrate BEFORE rendering, so a dominant event
+	// ending this frame un-ducks the voice it was masking in the same frame (no 1-frame gap).
 	if (Pool.IsValid())
 	{
 		Pool->Tick(CurrentTimeSeconds);
+	}
+	if (Runtime.IsValid())
+	{
+		Runtime->Render(CurrentTimeSeconds);
 	}
 	return true;
 }
