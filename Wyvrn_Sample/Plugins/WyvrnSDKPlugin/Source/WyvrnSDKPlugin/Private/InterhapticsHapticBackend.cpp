@@ -12,6 +12,7 @@
 #include "WyvrnHapticsStats.h"
 
 #include "Containers/Queue.h"
+#include "HAL/Event.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/Runnable.h"
@@ -34,12 +35,12 @@ namespace
 	// Baked event map produced by the editor importer (OutputContentPath default /Game/Wyvrn).
 	const TCHAR* const kDataAssetPath = TEXT("/Game/Wyvrn/WyvrnHapticData.WyvrnHapticData");
 
-	// The worker drains queued triggers at ~120 Hz (low trigger latency) but renders at
-	// ~60 Hz. HAR/the provider feed audio in 1024-sample (~10.7 ms) blocks, so a render
-	// window must exceed that or the provider starves and stutters — hence render every
-	// other queue tick. Both rates are decoupled from the game frame rate.
-	constexpr float kQueueIntervalSeconds = 1.0f / 120.0f;
-	constexpr int32 kRenderEveryNTicks = 2;
+	// The worker wakes every ~8 ms (~120 Hz) to drain queued triggers, and renders at ~60 Hz
+	// gated on elapsed time so the rate holds. The wait is an FEvent timeout in MILLISECONDS:
+	// FPlatformProcess::SleepNoStats(seconds) was observed sleeping ~1000x too long on PS5,
+	// stalling the worker to ~0.1 Hz. Tune kRenderIntervalSeconds if the feel needs it.
+	constexpr uint32 kQueueWaitMs           = 8;
+	constexpr double kRenderIntervalSeconds = 1.0 / 60.0;
 }
 
 /**
@@ -53,6 +54,17 @@ public:
 	explicit FWyvrnHapticRenderer(FWyvrnRuntimeData&& InData)
 		: Data(MoveTemp(InData))
 	{
+		// Created on the game thread so Stop() can wake the loop for a prompt exit.
+		WakeEvent = FPlatformProcess::GetSynchEventFromPool(false);
+	}
+
+	virtual ~FWyvrnHapticRenderer() override
+	{
+		if (WakeEvent != nullptr)
+		{
+			FPlatformProcess::ReturnSynchEventToPool(WakeEvent);
+			WakeEvent = nullptr;
+		}
 	}
 
 	/** Game thread: hand an event to the worker (lock-free). Dropped until the worker is ready. */
@@ -81,7 +93,7 @@ public:
 		UE_LOG(LogWyvrnHaptics, Log, TEXT("WyvrnSDK: preloading %d command(s)."), Data.Commands.Num());
 		Pool->Preload(Data);
 
-		LastCycles = FPlatformTime::Cycles64();
+		LastSeconds = FPlatformTime::Seconds();
 		bReady.store(true, std::memory_order_release);
 		UE_LOG(LogWyvrnHaptics, Log, TEXT("WyvrnSDK: Interhaptics render worker initialized."));
 		return true;
@@ -94,12 +106,18 @@ public:
 			return 0; // inert: nothing loaded
 		}
 
-		int32 TickCounter = 0;
+		double RenderAccumulator = 0.0;
+
 		while (!bStop.load(std::memory_order_acquire))
 		{
-			const uint64 Now = FPlatformTime::Cycles64();
-			TimeSeconds += (Now - LastCycles) * FPlatformTime::GetSecondsPerCycle();
-			LastCycles = Now;
+			// FPlatformTime::Seconds() returns real seconds directly. (Cycles64() * GetSecondsPerCycle()
+			// is wrong by ~1000x on PS5 — Cycles64 ticks far faster than GetSecondsPerCycle assumes —
+			// which raced TimeSeconds ahead and fed HAR garbage time.)
+			const double Now = FPlatformTime::Seconds();
+			const double Delta = Now - LastSeconds;
+			LastSeconds = Now;
+			TimeSeconds += Delta;
+			RenderAccumulator += Delta;
 
 			// Drain queued game-thread triggers every tick (~120 Hz) so events dispatch promptly.
 			FString EventName;
@@ -111,22 +129,36 @@ public:
 				}
 			}
 
-			// Reclaim / arbitrate / render at the slower ~60 Hz audio cadence.
-			if (++TickCounter >= kRenderEveryNTicks)
+			// Reclaim / arbitrate / render at HAR's native frame rate, time-gated so the rate
+			// holds despite sleep jitter.
+			if (RenderAccumulator >= kRenderIntervalSeconds)
 			{
-				TickCounter = 0;
+				RenderAccumulator -= kRenderIntervalSeconds;
+				if (RenderAccumulator > kRenderIntervalSeconds)
+				{
+					RenderAccumulator = 0.0; // drop backlog after a hitch rather than burst-render
+				}
+
 				SCOPE_CYCLE_COUNTER(STAT_WyvrnHaptics_RenderLoop);
 				Pool->Tick(TimeSeconds);
 				SET_DWORD_STAT(STAT_WyvrnHaptics_ActiveVoices, Pool->GetActiveVoiceCount());
 				Runtime->Render(TimeSeconds);
 			}
 
-			FPlatformProcess::SleepNoStats(kQueueIntervalSeconds);
+			// Timed wait in milliseconds — reliable on PS5, unlike SleepNoStats(seconds).
+			WakeEvent->Wait(kQueueWaitMs);
 		}
 		return 0;
 	}
 
-	virtual void Stop() override { bStop.store(true, std::memory_order_release); }
+	virtual void Stop() override
+	{
+		bStop.store(true, std::memory_order_release);
+		if (WakeEvent != nullptr)
+		{
+			WakeEvent->Trigger(); // wake the loop so it exits promptly
+		}
+	}
 
 	virtual void Exit() override
 	{
@@ -144,12 +176,13 @@ public:
 private:
 	FWyvrnRuntimeData Data;
 	TQueue<FString, EQueueMode::Mpsc> EventQueue;
+	FEvent* WakeEvent = nullptr;
 	TUniquePtr<FInterhapticsRuntime> Runtime;
 	TUniquePtr<FHapticVoicePool> Pool;
 	std::atomic<bool> bReady{ false };
 	std::atomic<bool> bStop{ false };
 	double TimeSeconds = 0.0;
-	uint64 LastCycles = 0;
+	double LastSeconds = 0.0;
 };
 
 FInterhapticsHapticBackend::FInterhapticsHapticBackend() = default;
