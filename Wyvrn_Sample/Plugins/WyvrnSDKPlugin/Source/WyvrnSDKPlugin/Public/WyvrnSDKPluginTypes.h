@@ -26,5 +26,5 @@ struct WYVRNSDKPLUGIN_API FWyvrnSDKAppInfoType
 	//int32 SupportedDevice;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "WyvrnSDK")
-	int32 Category;
+	int32 Category = 0;
 };

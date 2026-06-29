@@ -34,8 +34,12 @@ namespace
 	// Baked event map produced by the editor importer (OutputContentPath default /Game/Wyvrn).
 	const TCHAR* const kDataAssetPath = TEXT("/Game/Wyvrn/WyvrnHapticData.WyvrnHapticData");
 
-	// Render cadence of the worker (~125 Hz). Decoupled from the game frame rate.
-	constexpr float kRenderIntervalSeconds = 0.008f;
+	// The worker drains queued triggers at ~120 Hz (low trigger latency) but renders at
+	// ~60 Hz. HAR/the provider feed audio in 1024-sample (~10.7 ms) blocks, so a render
+	// window must exceed that or the provider starves and stutters — hence render every
+	// other queue tick. Both rates are decoupled from the game frame rate.
+	constexpr float kQueueIntervalSeconds = 1.0f / 120.0f;
+	constexpr int32 kRenderEveryNTicks = 2;
 }
 
 /**
@@ -90,31 +94,34 @@ public:
 			return 0; // inert: nothing loaded
 		}
 
+		int32 TickCounter = 0;
 		while (!bStop.load(std::memory_order_acquire))
 		{
+			const uint64 Now = FPlatformTime::Cycles64();
+			TimeSeconds += (Now - LastCycles) * FPlatformTime::GetSecondsPerCycle();
+			LastCycles = Now;
+
+			// Drain queued game-thread triggers every tick (~120 Hz) so events dispatch promptly.
+			FString EventName;
+			while (EventQueue.Dequeue(EventName))
 			{
-				SCOPE_CYCLE_COUNTER(STAT_WyvrnHaptics_RenderLoop);
-
-				const uint64 Now = FPlatformTime::Cycles64();
-				TimeSeconds += (Now - LastCycles) * FPlatformTime::GetSecondsPerCycle();
-				LastCycles = Now;
-
-				// Apply queued game-thread triggers, then reclaim / arbitrate / render.
-				FString EventName;
-				while (EventQueue.Dequeue(EventName))
+				if (const FWyvrnRuntimeCommand* Command = Data.FindCommand(EventName))
 				{
-					if (const FWyvrnRuntimeCommand* Command = Data.FindCommand(EventName))
-					{
-						Pool->PlayCommand(*Command, TimeSeconds);
-					}
+					Pool->PlayCommand(*Command, TimeSeconds);
 				}
+			}
 
+			// Reclaim / arbitrate / render at the slower ~60 Hz audio cadence.
+			if (++TickCounter >= kRenderEveryNTicks)
+			{
+				TickCounter = 0;
+				SCOPE_CYCLE_COUNTER(STAT_WyvrnHaptics_RenderLoop);
 				Pool->Tick(TimeSeconds);
 				SET_DWORD_STAT(STAT_WyvrnHaptics_ActiveVoices, Pool->GetActiveVoiceCount());
 				Runtime->Render(TimeSeconds);
 			}
 
-			FPlatformProcess::SleepNoStats(kRenderIntervalSeconds);
+			FPlatformProcess::SleepNoStats(kQueueIntervalSeconds);
 		}
 		return 0;
 	}
