@@ -6,8 +6,8 @@
 #include "WyvrnHapticTypes.h"
 
 class IInterhapticsRuntime;
-class UWyvrnHapticData;
-class UWyvrnHapticEffect;
+struct FWyvrnRuntimeData;
+struct FWyvrnRuntimeCommand;
 
 /**
  * Maps WYVRN events to HAR playback.
@@ -27,8 +27,8 @@ class UWyvrnHapticEffect;
  * equal-priority events either merge or, when the newest is an Override event,
  * play alone. Ducking mutes via SetIntensity(0) while the event keeps playing, so
  * a ducked event's timeline still advances and it resumes mid-stream when the
- * dominant event ends. Owned by the PS5 backend; not thread-safe (driven from the
- * game thread tick).
+ * dominant event ends. Owned by the PS5 render worker; not thread-safe — every
+ * call must come from that one worker thread.
  */
 class FHapticVoicePool
 {
@@ -36,10 +36,10 @@ public:
 	FHapticVoicePool(IInterhapticsRuntime& InRuntime, int32 InVoicesPerEffect);
 
 	/** Loads every distinct (effect, target-set) in Data, InVoicesPerEffect times, via the runtime. */
-	void Preload(const UWyvrnHapticData& Data);
+	void Preload(const FWyvrnRuntimeData& Data);
 
 	/** Applies Command's Interrupts_Commands stops, then plays each of its effects. */
-	void PlayCommand(const FWyvrnHapticCommand& Command, double NowSeconds);
+	void PlayCommand(const FWyvrnRuntimeCommand& Command, double NowSeconds);
 
 	/** Reclaims voices whose playback length has elapsed. Call once per frame. */
 	void Tick(double NowSeconds);
@@ -69,17 +69,17 @@ private:
 	// to its material ids (an order-independent signature of the (region, side) pairs).
 	struct FPoolKey
 	{
-		UWyvrnHapticEffect* Effect = nullptr;
+		int32 EffectId = -1;
 		uint32 TargetSignature = 0;
 
 		bool operator==(const FPoolKey& Other) const
 		{
-			return Effect == Other.Effect && TargetSignature == Other.TargetSignature;
+			return EffectId == Other.EffectId && TargetSignature == Other.TargetSignature;
 		}
 
 		friend uint32 GetTypeHash(const FPoolKey& Key)
 		{
-			return HashCombine(GetTypeHash(Key.Effect), Key.TargetSignature);
+			return HashCombine(GetTypeHash(Key.EffectId), Key.TargetSignature);
 		}
 	};
 

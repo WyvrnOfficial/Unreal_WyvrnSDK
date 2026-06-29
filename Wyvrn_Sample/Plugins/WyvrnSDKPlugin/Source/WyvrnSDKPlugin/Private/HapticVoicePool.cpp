@@ -5,8 +5,7 @@
 #include "Math/NumericLimits.h"
 
 #include "IInterhapticsRuntime.h"
-#include "WyvrnHapticData.h"
-#include "WyvrnHapticEffect.h"
+#include "WyvrnHapticRuntime.h"
 
 uint32 FHapticVoicePool::MakeTargetSignature(const TArray<FWyvrnHapticTarget>& Targets)
 {
@@ -26,18 +25,18 @@ FHapticVoicePool::FHapticVoicePool(IInterhapticsRuntime& InRuntime, int32 InVoic
 {
 }
 
-void FHapticVoicePool::Preload(const UWyvrnHapticData& Data)
+void FHapticVoicePool::Preload(const FWyvrnRuntimeData& Data)
 {
-	for (const FWyvrnHapticCommand& Command : Data.Commands)
+	for (const FWyvrnRuntimeCommand& Command : Data.Commands)
 	{
-		for (const FWyvrnHapticEvent& EffectEntry : Command.Effects)
+		for (const FWyvrnRuntimeEvent& EffectEntry : Command.Effects)
 		{
-			if (EffectEntry.Effect == nullptr)
+			if (EffectEntry.EffectId < 0)
 			{
 				continue;
 			}
 
-			const FPoolKey Key{ EffectEntry.Effect, MakeTargetSignature(EffectEntry.Targets) };
+			const FPoolKey Key{ EffectEntry.EffectId, MakeTargetSignature(EffectEntry.Targets) };
 			if (VoicesByPool.Contains(Key))
 			{
 				continue;
@@ -47,7 +46,7 @@ void FHapticVoicePool::Preload(const UWyvrnHapticData& Data)
 			Voices.Reserve(VoicesPerEffect);
 			for (int32 Index = 0; Index < VoicesPerEffect; ++Index)
 			{
-				const int32 MaterialId = Runtime.AddMaterial(EffectEntry.Effect->Json);
+				const int32 MaterialId = Runtime.AddMaterial(Data.EffectJson[EffectEntry.EffectId]);
 				if (MaterialId < 0)
 				{
 					break;
@@ -67,7 +66,7 @@ void FHapticVoicePool::Preload(const UWyvrnHapticData& Data)
 	}
 }
 
-void FHapticVoicePool::PlayCommand(const FWyvrnHapticCommand& Command, double NowSeconds)
+void FHapticVoicePool::PlayCommand(const FWyvrnRuntimeCommand& Command, double NowSeconds)
 {
 	// The bare-string "All" form (bInterruptAll) stops every event; named interrupts
 	// stop only the events they name (an event literally named "All" would match here).
@@ -92,10 +91,10 @@ void FHapticVoicePool::PlayCommand(const FWyvrnHapticCommand& Command, double No
 		}
 	}
 
-	for (const FWyvrnHapticEvent& EffectEntry : Command.Effects)
+	for (const FWyvrnRuntimeEvent& EffectEntry : Command.Effects)
 	{
-		TArray<FVoice>* Voices = EffectEntry.Effect != nullptr
-			? VoicesByPool.Find(FPoolKey{ EffectEntry.Effect, MakeTargetSignature(EffectEntry.Targets) })
+		TArray<FVoice>* Voices = EffectEntry.EffectId >= 0
+			? VoicesByPool.Find(FPoolKey{ EffectEntry.EffectId, MakeTargetSignature(EffectEntry.Targets) })
 			: nullptr;
 		if (Voices == nullptr || Voices->Num() == 0)
 		{
