@@ -6,11 +6,13 @@
 #ifndef _WYVRNERRORS_H_
 #define _WYVRNERRORS_H_
 
-#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
-
-#include "Windows/AllowWindowsPlatformTypes.h" 
-
 #pragma once
+
+// These mirror the Windows system error codes the SDK returns on Windows, but they
+// are plain integer literals with no Windows dependency, so they are defined on every
+// platform. This lets game code that switches on RZRESULT_* (e.g. ported from PC)
+// compile and run unchanged on consoles such as PS5, where the SDK returns
+// RZRESULT_SUCCESS / RZRESULT_INVALID without being wrapped in #if PLATFORM_WINDOWS.
 
 // Error codes
 //! Invalid
@@ -51,9 +53,5 @@
 #define     RZRESULT_DLL_INVALID_SIGNATURE		6033L
 //! General failure.
 #define     RZRESULT_FAILED                     2147500037L
-
-#include "Windows/HideWindowsPlatformTypes.h"
-
-#endif
 
 #endif
