@@ -13,6 +13,7 @@
 
 #include "Containers/Queue.h"
 #include "HAL/Event.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/Runnable.h"
@@ -22,6 +23,24 @@
 #include <atomic>
 
 DEFINE_LOG_CATEGORY(LogWyvrnHaptics);
+
+// Verbose per-event tracing toggle for the whole SetEventName -> render-worker path.
+// OFF by default; enable on the devkit console (or a config [ConsoleVariables] block) with:
+//     wyvrn.Haptics.VerboseLog 1
+static TAutoConsoleVariable<int32> CVarWyvrnHapticsVerboseLog(
+	TEXT("wyvrn.Haptics.VerboseLog"),
+	0,
+	TEXT("Trace each WYVRN haptic event through every stage of the PS5 path:\n")
+	TEXT("  game-thread SetEventName -> backend -> render-worker queue -> command lookup -> voice playback.\n")
+	TEXT("  0: off (default)\n")
+	TEXT("  1: on"),
+	ECVF_Default);
+
+// Queried from both the game thread (enqueue side) and the render worker (drain side).
+bool WyvrnHapticsVerboseLoggingEnabled()
+{
+	return CVarWyvrnHapticsVerboseLog.GetValueOnAnyThread() != 0;
+}
 
 DECLARE_CYCLE_STAT(TEXT("Render Loop"), STAT_WyvrnHaptics_RenderLoop, STATGROUP_WyvrnHaptics);
 DECLARE_CYCLE_STAT(TEXT("Set Event (enqueue)"), STAT_WyvrnHaptics_SetEvent, STATGROUP_WyvrnHaptics);
@@ -73,6 +92,11 @@ public:
 		if (bReady.load(std::memory_order_acquire))
 		{
 			EventQueue.Enqueue(EventName);
+			WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [Enqueue]: '%s' queued for render worker (game thread)."), *EventName);
+		}
+		else
+		{
+			WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [Enqueue]: '%s' DROPPED — render worker not ready yet."), *EventName);
 		}
 	}
 
@@ -123,9 +147,16 @@ public:
 			FString EventName;
 			while (EventQueue.Dequeue(EventName))
 			{
+				WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [Worker]: received '%s' from queue (worker thread)."), *EventName);
 				if (const FWyvrnRuntimeCommand* Command = Data.FindCommand(EventName))
 				{
+					WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [Worker]: '%s' matched a command (%d effect(s)); dispatching at t=%.3fs."),
+						*EventName, Command->Effects.Num(), TimeSeconds);
 					Pool->PlayCommand(*Command, TimeSeconds);
+				}
+				else
+				{
+					WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [Worker]: '%s' matched NO command — unknown event, ignored."), *EventName);
 				}
 			}
 
@@ -246,9 +277,15 @@ void FInterhapticsHapticBackend::SetEventName(const FString& EventName)
 {
 	SCOPE_CYCLE_COUNTER(STAT_WyvrnHaptics_SetEvent);
 
+	WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [Backend]: SetEventName('%s') -> forwarding to render worker."), *EventName);
+
 	if (Renderer.IsValid())
 	{
 		Renderer->Enqueue(EventName);
+	}
+	else
+	{
+		WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [Backend]: SetEventName('%s') DROPPED — no render worker."), *EventName);
 	}
 }
 

@@ -6,6 +6,7 @@
 
 #include "IInterhapticsRuntime.h"
 #include "WyvrnHapticRuntime.h"
+#include "WyvrnHapticsLog.h"
 
 uint32 FHapticVoicePool::MakeTargetSignature(const TArray<FWyvrnHapticTarget>& Targets)
 {
@@ -68,6 +69,9 @@ void FHapticVoicePool::Preload(const FWyvrnRuntimeData& Data)
 
 void FHapticVoicePool::PlayCommand(const FWyvrnRuntimeCommand& Command, double NowSeconds)
 {
+	WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [VoicePool]: PlayCommand('%s') — effects=%d interruptAll=%d namedInterrupts=%d."),
+		*Command.EventName, Command.Effects.Num(), Command.bInterruptAll ? 1 : 0, Command.InterruptCommands.Num());
+
 	// The bare-string "All" form (bInterruptAll) stops every event; named interrupts
 	// stop only the events they name (an event literally named "All" would match here).
 	if (Command.bInterruptAll)
@@ -98,6 +102,8 @@ void FHapticVoicePool::PlayCommand(const FWyvrnRuntimeCommand& Command, double N
 			: nullptr;
 		if (Voices == nullptr || Voices->Num() == 0)
 		{
+			WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [VoicePool]: '%s' effect id=%d has no preloaded voices; skipped."),
+				*Command.EventName, EffectEntry.EffectId);
 			continue;
 		}
 
@@ -116,12 +122,17 @@ void FHapticVoicePool::PlayCommand(const FWyvrnRuntimeCommand& Command, double N
 		{
 			// Pool saturated with strictly higher-priority voices: the new play would be
 			// ducked to silence anyway, so drop it rather than evict a dominant event.
+			WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [VoicePool]: '%s' effect id=%d saturated by higher-priority voices; dropped."),
+				*Command.EventName, EffectEntry.EffectId);
 			continue;
 		}
 
 		// Targets are already bound to this material id at preload; just (re)start it.
 		Runtime.SetLoop(Voice->MaterialId, EffectEntry.Loop);
 		Runtime.Play(Voice->MaterialId, NowSeconds);
+		WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [VoicePool]: '%s' effect id=%d -> material %d, %s, priority=%d (playing)."),
+			*Command.EventName, EffectEntry.EffectId, Voice->MaterialId,
+			bLooping ? TEXT("loop") : TEXT("one-shot"), static_cast<int32>(EffectEntry.Priority));
 
 		Voice->bActive = true;
 		Voice->bLooping = bLooping;

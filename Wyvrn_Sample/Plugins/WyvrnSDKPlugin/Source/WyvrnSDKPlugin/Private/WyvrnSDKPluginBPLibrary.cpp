@@ -10,6 +10,7 @@
 
 #if defined(PLATFORM_PS5) && PLATFORM_PS5
 #include "IWyvrnHapticBackend.h"
+#include "WyvrnHapticsLog.h"
 #endif
 
 
@@ -140,9 +141,12 @@ int32 UWyvrnSDKPluginBPLibrary::SetEventName(const FString& name)
 	}
 	return WyvrnAPI::CoreSetEventName(TCHAR_TO_WCHAR(*name));
 #elif defined(PLATFORM_PS5) && PLATFORM_PS5
+	WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [BP]: SetEventName('%s') requested (game thread)."), *name);
 	IWyvrnHapticBackend* Backend = GetWyvrnHapticBackend();
 	if (Backend == nullptr || !Backend->IsInitialized())
 	{
+		WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [BP]: SetEventName('%s') DROPPED — backend %s."),
+			*name, (Backend == nullptr) ? TEXT("unavailable") : TEXT("not initialized"));
 		return -1;
 	}
 	Backend->SetEventName(name);
