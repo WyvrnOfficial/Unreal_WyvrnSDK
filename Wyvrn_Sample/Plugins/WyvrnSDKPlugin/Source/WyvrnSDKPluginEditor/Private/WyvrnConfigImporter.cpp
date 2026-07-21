@@ -12,6 +12,7 @@
 #include "Settings/ProjectPackagingSettings.h"
 
 #include "WyvrnConfigParser.h"
+#include "WyvrnHapsFile.h"
 #include "WyvrnHapticData.h"
 #include "WyvrnHapticEffect.h"
 
@@ -109,8 +110,13 @@ namespace
 		{
 			HapticEffect = NewObject<UWyvrnHapticEffect>(Package, FName(*EffectName), RF_Public | RF_Standalone);
 		}
+		HapticEffect->bHasStiffnessTrack = FWyvrnHapsFile::HasStiffnessTrack(Json);
 		HapticEffect->Json = MoveTemp(Json);
 		HapticEffect->SourceName = EffectName;
+		if (HapticEffect->bHasStiffnessTrack)
+		{
+			UE_LOG(LogWyvrnImport, Log, TEXT("WyvrnConfigImporter: effect '%s' carries a Stiffness track; its events will drive the DualSense adaptive triggers."), *EffectName);
+		}
 
 		FAssetRegistryModule::AssetCreated(HapticEffect);
 		Package->MarkPackageDirty();

@@ -45,6 +45,7 @@ FWyvrnRuntimeData FWyvrnRuntimeData::Build(const UWyvrnHapticData& Data)
 			RuntimeEvent.Priority = EffectEntry.Priority;
 			RuntimeEvent.Mixing = EffectEntry.Mixing;
 			RuntimeEvent.Targets = EffectEntry.Targets;
+			RuntimeEvent.bHasStiffness = EffectEntry.Effect->bHasStiffnessTrack;
 			RuntimeCommand.Effects.Add(MoveTemp(RuntimeEvent));
 		}
 

@@ -7,8 +7,8 @@
 
 /**
  * Abstraction over the Interhaptics HAR runtime. The real implementation binds
- * HAR.prx / DualSenseProvider.prx on PS5; tests substitute a mock. Every event
- * is keyed by the material id returned from AddMaterial (HAR's _hMaterialID).
+ * HAR.prx / Provider_DualSensePS5.prx on PS5; tests substitute a mock. Every
+ * event is keyed by the material id returned from AddMaterial (HAR's _hMaterialID).
  */
 class IInterhapticsRuntime
 {
@@ -45,4 +45,16 @@ public:
 
 	/** ComputeAllEvents(Time) followed by ProviderRenderHaptics(). Call once per frame. */
 	virtual void Render(double TimeSeconds) = 0;
+
+	/**
+	 * DualSense adaptive trigger (provider startTriggerEffect): samples MaterialId's
+	 * Stiffness envelope across the trigger's travel and applies it as position
+	 * feedback on L2 (bLeftTrigger) or R2. The resistance stays applied until
+	 * StopTriggerEffect for that trigger — it does not end with playback. One
+	 * trigger per call; the latest call per trigger wins. Returns false when the
+	 * pad rejected the effect (e.g. no controller yet) so the caller can retry.
+	 */
+	virtual bool StartTriggerEffect(int32 MaterialId, bool bLeftTrigger) = 0;
+	/** Releases the adaptive trigger effect on L2 (bLeftTrigger) or R2 (provider stopTriggerEffect). */
+	virtual void StopTriggerEffect(bool bLeftTrigger) = 0;
 };

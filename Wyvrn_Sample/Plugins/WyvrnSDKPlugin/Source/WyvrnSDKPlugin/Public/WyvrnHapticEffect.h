@@ -25,4 +25,14 @@ public:
 	/** Effect name this asset was imported from (e.g. "Effect1"). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
 	FString SourceName;
+
+	/**
+	 * True when the .haps carries an authored Stiffness track (detected at import).
+	 * On PS5, playing such an event latches the stiffness envelope onto the DualSense
+	 * adaptive trigger(s) it targets until the event is interrupted (designer-authored
+	 * OFF command or stop-all). Assets imported before this flag existed read false;
+	 * reimport to re-detect.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "WyvrnSDK|Haptics")
+	bool bHasStiffnessTrack = false;
 };

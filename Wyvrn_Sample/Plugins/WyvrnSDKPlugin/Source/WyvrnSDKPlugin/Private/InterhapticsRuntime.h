@@ -37,8 +37,19 @@ public:
 	virtual void StopAll() override;
 	virtual double GetLength(int32 MaterialId) const override;
 	virtual void Render(double TimeSeconds) override;
+	virtual bool StartTriggerEffect(int32 MaterialId, bool bLeftTrigger) override;
+	virtual void StopTriggerEffect(bool bLeftTrigger) override;
 
 private:
+	// Adaptive-trigger provider exports, resolved with GetDllExport at Initialize
+	// rather than through the weak stubs so the checked-in *_stub_weak.a import
+	// libraries keep working whether or not their provider vintage exported these.
+	// Null (=> no-op) when the loaded PRX predates the exports.
+	typedef int (*FStartTriggerEffectFn)(int Id, bool bIsLeft);
+	typedef int (*FStopTriggerEffectFn)(bool bIsLeft);
+	FStartTriggerEffectFn StartTriggerEffectFn = nullptr;
+	FStopTriggerEffectFn StopTriggerEffectFn = nullptr;
+
 	bool bAvailable = false;
 };
 

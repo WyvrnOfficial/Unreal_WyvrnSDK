@@ -20,10 +20,49 @@ uint32 FHapticVoicePool::MakeTargetSignature(const TArray<FWyvrnHapticTarget>& T
 	return Signature;
 }
 
+uint8 FHapticVoicePool::MakeTriggerMask(const FWyvrnRuntimeEvent& EffectEntry)
+{
+	if (!EffectEntry.bHasStiffness)
+	{
+		return 0;
+	}
+
+	uint8 Mask = 0;
+	for (const FWyvrnHapticTarget& Target : EffectEntry.Targets)
+	{
+		// Only the hand region maps to the controller, hence to its triggers.
+		if (Target.Region != EWyvrnHapticTarget::Hand)
+		{
+			continue;
+		}
+		switch (Target.Side)
+		{
+		case EWyvrnHapticSide::Left:  Mask |= TriggerLeft; break;
+		case EWyvrnHapticSide::Right: Mask |= TriggerRight; break;
+		default:                      Mask |= TriggerLeft | TriggerRight; break;
+		}
+	}
+	return Mask;
+}
+
 FHapticVoicePool::FHapticVoicePool(IInterhapticsRuntime& InRuntime, int32 InVoicesPerEffect)
 	: Runtime(InRuntime)
 	, VoicesPerEffect(FMath::Max(1, InVoicesPerEffect))
 {
+}
+
+FHapticVoicePool::~FHapticVoicePool()
+{
+	// Leave the pad neutral: an applied trigger effect outlives playback on the
+	// device, so it must be released explicitly on teardown. The backend resets the
+	// pool before the runtime, so Runtime is still valid here.
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		if (AppliedTriggerMaterial[Side] != -1)
+		{
+			Runtime.StopTriggerEffect(Side == 0);
+		}
+	}
 }
 
 void FHapticVoicePool::Preload(const FWyvrnRuntimeData& Data)
@@ -78,6 +117,7 @@ void FHapticVoicePool::PlayCommand(const FWyvrnRuntimeCommand& Command, double N
 	{
 		Runtime.StopAll();
 		DeactivateAllVoices();
+		TriggerClaims.Empty();
 	}
 
 	for (const FString& Interrupt : Command.InterruptCommands)
@@ -93,6 +133,14 @@ void FHapticVoicePool::PlayCommand(const FWyvrnRuntimeCommand& Command, double N
 			}
 			ActiveVoicesByEvent.Remove(Interrupt);
 		}
+
+		// Release the interrupted event's latched trigger claims too. Deliberately
+		// independent of the voice lookup above: a one-shot's voices may have retired
+		// long ago while its latch is still holding a trigger.
+		TriggerClaims.RemoveAll([&Interrupt](const FTriggerClaim& Claim)
+			{
+				return Claim.EventName == Interrupt;
+			});
 	}
 
 	for (const FWyvrnRuntimeEvent& EffectEntry : Command.Effects)
@@ -108,6 +156,28 @@ void FHapticVoicePool::PlayCommand(const FWyvrnRuntimeCommand& Command, double N
 		}
 
 		const bool bLooping = EffectEntry.Loop < 0;
+
+		// Playing a stiffness-carrying event LATCHES its trigger claim, independent of
+		// the voice below (which only spans the vibration window): the claim upserts on
+		// (event, material) so replays re-assert ownership without stacking, and only
+		// an interrupt releases it. Any pooled id works — they share one envelope.
+		if (const uint8 TriggerMask = MakeTriggerMask(EffectEntry))
+		{
+			const int32 ClaimMaterial = (*Voices)[0].MaterialId;
+			FTriggerClaim* Claim = TriggerClaims.FindByPredicate(
+				[&Command, ClaimMaterial](const FTriggerClaim& Existing)
+				{
+					return Existing.EventName == Command.EventName && Existing.MaterialId == ClaimMaterial;
+				});
+			if (Claim == nullptr)
+			{
+				Claim = &TriggerClaims.AddDefaulted_GetRef();
+				Claim->EventName = Command.EventName;
+				Claim->MaterialId = ClaimMaterial;
+			}
+			Claim->Mask = TriggerMask;
+			Claim->Sequence = NextSequence++;
+		}
 
 		// Re-triggering a still-playing looping event restarts its own voice instead of
 		// layering another identical infinite loop, which would pile up active voices and
@@ -153,6 +223,7 @@ void FHapticVoicePool::PlayCommand(const FWyvrnRuntimeCommand& Command, double N
 
 	// New voices may out-prioritize (or be out-prioritized by) what is already playing.
 	UpdateArbitration();
+	UpdateTriggerEffects();
 }
 
 void FHapticVoicePool::Tick(double NowSeconds)
@@ -173,7 +244,9 @@ void FHapticVoicePool::Tick(double NowSeconds)
 		}
 	}
 
-	// A dominant voice that just ended must un-duck the lower-priority voices it was masking.
+	// A dominant voice that just ended must un-duck the lower-priority voices it was
+	// masking. Trigger claims are deliberately untouched: a latch outlives its
+	// voice's playback window and only an interrupt releases it.
 	if (bReclaimedAny)
 	{
 		UpdateArbitration();
@@ -350,6 +423,59 @@ void FHapticVoicePool::UpdateArbitration()
 		{
 			Runtime.SetIntensity(Voice->MaterialId, Desired);
 			Voice->AppliedIntensity = Desired;
+		}
+	}
+}
+
+void FHapticVoicePool::UpdateTriggerEffects()
+{
+	// Per trigger, the newest latched claim wins (mirroring how Override picks the
+	// newest voice); releasing it falls back to the newest survivor, and a trigger
+	// with no claim left is switched off. Claims are independent of voices, so
+	// neither the natural end of playback nor ducking disturbs an armed trigger.
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const uint8 SideBit = Side == 0 ? TriggerLeft : TriggerRight;
+
+		const FTriggerClaim* Owner = nullptr;
+		for (const FTriggerClaim& Claim : TriggerClaims)
+		{
+			if ((Claim.Mask & SideBit) != 0 && (Owner == nullptr || Claim.Sequence > Owner->Sequence))
+			{
+				Owner = &Claim;
+			}
+		}
+
+		// The provider holds one effect per trigger and the latest call wins, so a
+		// changed owner is a single re-arm; an unchanged one needs no call (the
+		// stiffness envelope is static per material).
+		const int32 OwnerMaterial = Owner != nullptr ? Owner->MaterialId : -1;
+		if (OwnerMaterial == AppliedTriggerMaterial[Side])
+		{
+			continue;
+		}
+		if (OwnerMaterial != -1)
+		{
+			if (Runtime.StartTriggerEffect(OwnerMaterial, Side == 0))
+			{
+				AppliedTriggerMaterial[Side] = OwnerMaterial;
+				WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [VoicePool]: adaptive trigger %s -> material %d."),
+					Side == 0 ? TEXT("L2") : TEXT("R2"), OwnerMaterial);
+			}
+			else
+			{
+				// Pad rejected the arm (e.g. no controller yet). Keep the recorded pad
+				// state unchanged so the next lifecycle change retries this owner.
+				WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [VoicePool]: adaptive trigger %s arm FAILED for material %d; will retry."),
+					Side == 0 ? TEXT("L2") : TEXT("R2"), OwnerMaterial);
+			}
+		}
+		else
+		{
+			Runtime.StopTriggerEffect(Side == 0);
+			AppliedTriggerMaterial[Side] = -1;
+			WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [VoicePool]: adaptive trigger %s released."),
+				Side == 0 ? TEXT("L2") : TEXT("R2"));
 		}
 	}
 }

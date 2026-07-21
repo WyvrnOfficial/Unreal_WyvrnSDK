@@ -24,6 +24,14 @@ struct FWyvrnRuntimeEvent
 	EWyvrnHapticPriority Priority = EWyvrnHapticPriority::High;
 	EWyvrnHapticMixing Mixing = EWyvrnHapticMixing::Merge;
 	TArray<FWyvrnHapticTarget> Targets;
+	/**
+	 * The effect asset carries a Stiffness track (property of the .haps, copied per
+	 * event). Playing such an event latches its stiffness envelope onto the DualSense
+	 * adaptive triggers its Hand sides address (Global = both, Left/Right = that one)
+	 * until the event is interrupted — the envelope maps trigger travel, not time, so
+	 * only a designer-authored OFF command (or stop-all) releases it.
+	 */
+	bool bHasStiffness = false;
 };
 
 struct FWyvrnRuntimeCommand

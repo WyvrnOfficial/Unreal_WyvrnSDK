@@ -2,6 +2,7 @@
 
 #include "WyvrnHapticEffectFactory.h"
 
+#include "WyvrnHapsFile.h"
 #include "WyvrnHapticEffect.h"
 
 UWyvrnHapticEffectFactory::UWyvrnHapticEffectFactory()
@@ -30,6 +31,7 @@ UObject* UWyvrnHapticEffectFactory::FactoryCreateText(
 	UWyvrnHapticEffect* HapticEffect = NewObject<UWyvrnHapticEffect>(InParent, InClass, InName, Flags);
 	HapticEffect->Json.AppendChars(Buffer, static_cast<int32>(BufferEnd - Buffer));
 	HapticEffect->SourceName = InName.ToString();
+	HapticEffect->bHasStiffnessTrack = FWyvrnHapsFile::HasStiffnessTrack(HapticEffect->Json);
 
 	return HapticEffect;
 }

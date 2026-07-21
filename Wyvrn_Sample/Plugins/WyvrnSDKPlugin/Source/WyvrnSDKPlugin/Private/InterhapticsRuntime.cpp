@@ -85,6 +85,22 @@ bool FInterhapticsRuntime::Initialize()
 		return false;
 	}
 
+	// The adaptive-trigger exports are newer than the rest of the provider surface;
+	// resolve them dynamically so an older PRX degrades to no-op triggers instead of
+	// failing the whole runtime.
+	StartTriggerEffectFn = reinterpret_cast<FStartTriggerEffectFn>(FPlatformProcess::GetDllExport(ProviderHandle, TEXT("startTriggerEffect")));
+	StopTriggerEffectFn = reinterpret_cast<FStopTriggerEffectFn>(FPlatformProcess::GetDllExport(ProviderHandle, TEXT("stopTriggerEffect")));
+	UE_LOG(LogWyvrnHaptics, Log, TEXT("Interhaptics: adaptive trigger exports start=%p stop=%p%s"),
+		reinterpret_cast<void*>(StartTriggerEffectFn), reinterpret_cast<void*>(StopTriggerEffectFn),
+		(StartTriggerEffectFn != nullptr && StopTriggerEffectFn != nullptr) ? TEXT("") : TEXT(" (missing; adaptive triggers inert)"));
+	if (StartTriggerEffectFn == nullptr || StopTriggerEffectFn == nullptr)
+	{
+		// Never run with only one of the pair: a started effect that can't be stopped
+		// would pin the trigger's resistance for the rest of the session.
+		StartTriggerEffectFn = nullptr;
+		StopTriggerEffectFn = nullptr;
+	}
+
 	const bool bEngineInit = Init();
 	const bool bProviderInit = ProviderInit();
 	UE_LOG(LogWyvrnHaptics, Log, TEXT("Interhaptics: Init()=%d ProviderInit()=%d"), bEngineInit, bProviderInit);
@@ -112,6 +128,8 @@ void FInterhapticsRuntime::Shutdown()
 		Quit();
 	}
 #endif
+	StartTriggerEffectFn = nullptr;
+	StopTriggerEffectFn = nullptr;
 	bAvailable = false;
 }
 
@@ -227,6 +245,25 @@ void FInterhapticsRuntime::Render(double TimeSeconds)
 		ProviderRenderHaptics();
 	}
 #endif
+}
+
+bool FInterhapticsRuntime::StartTriggerEffect(int32 MaterialId, bool bLeftTrigger)
+{
+	if (bAvailable && StartTriggerEffectFn != nullptr)
+	{
+		// The provider forwards scePadSetTriggerEffect's result: negative when the
+		// pad rejected the effect (e.g. controller not connected yet).
+		return StartTriggerEffectFn(MaterialId, bLeftTrigger) >= 0;
+	}
+	return false;
+}
+
+void FInterhapticsRuntime::StopTriggerEffect(bool bLeftTrigger)
+{
+	if (bAvailable && StopTriggerEffectFn != nullptr)
+	{
+		StopTriggerEffectFn(bLeftTrigger);
+	}
 }
 
 #endif // PLATFORM_PS5
