@@ -39,6 +39,7 @@ extern "C"
 	void   AddTargetToEventMarshal(int MaterialId, FCommandData* Targets, int Size);
 	void   ComputeAllEvents(double CurrentTime);
 	void   SetEventIntensity(int MaterialId, double Intensity);
+	void   SetGlobalIntensity(double Intensity);
 	void   SetEventLoop(int MaterialId, int NumLoops);
 	double GetVibrationLength(int MaterialId);
 
@@ -159,6 +160,23 @@ void FInterhapticsRuntime::SetIntensity(int32 MaterialId, float Intensity)
 #endif
 }
 
+void FInterhapticsRuntime::SetGlobalIntensity(float Intensity)
+{
+	// Kept even when HAR is inert so StartTriggerEffect always has a value to restore.
+	GlobalIntensity = Intensity;
+
+#if WITH_INTERHAPTICS_HAR
+	if (bAvailable)
+	{
+		// Note the leading "::": unqualified, the name would resolve to this very
+		// member (class scope hides the global), silently recursing forever - the
+		// float argument converts to double just fine. The SetIntensity ->
+		// SetEventIntensity pair does not have this trap because the names differ.
+		::SetGlobalIntensity(static_cast<double>(Intensity));
+	}
+#endif
+}
+
 void FInterhapticsRuntime::SetLoop(int32 MaterialId, int32 NumLoops)
 {
 #if WITH_INTERHAPTICS_HAR
@@ -249,13 +267,38 @@ void FInterhapticsRuntime::Render(double TimeSeconds)
 
 bool FInterhapticsRuntime::StartTriggerEffect(int32 MaterialId, bool bLeftTrigger)
 {
-	if (bAvailable && StartTriggerEffectFn != nullptr)
+	if (!bAvailable || StartTriggerEffectFn == nullptr)
 	{
-		// The provider forwards scePadSetTriggerEffect's result: negative when the
-		// pad rejected the effect (e.g. controller not connected yet).
-		return StartTriggerEffectFn(MaterialId, bLeftTrigger) >= 0;
+		return false;
 	}
-	return false;
+
+#if WITH_INTERHAPTICS_HAR
+	// The provider samples the material's Stiffness envelope synchronously inside
+	// startTriggerEffect (GetStiffnessAmp per trigger position), and HAR feeds that
+	// sampling the SAME global intensity as vibration:
+	//     HManager::GetStiffness -> HMaterial::EvaluateStiffness(step, m_globalIntensity)
+	// The general haptics gain is deliberately vibration-only, so neutralise the
+	// intensity across the arm and restore it immediately after. No locking needed:
+	// every HAR call, including this one, is made on the render worker thread.
+	const bool bNeutralise = GlobalIntensity != 1.0f;
+	if (bNeutralise)
+	{
+		::SetGlobalIntensity(1.0);
+	}
+#endif
+
+	// The provider forwards scePadSetTriggerEffect's result: negative when the
+	// pad rejected the effect (e.g. controller not connected yet).
+	const bool bStarted = StartTriggerEffectFn(MaterialId, bLeftTrigger) >= 0;
+
+#if WITH_INTERHAPTICS_HAR
+	if (bNeutralise)
+	{
+		::SetGlobalIntensity(static_cast<double>(GlobalIntensity));
+	}
+#endif
+
+	return bStarted;
 }
 
 void FInterhapticsRuntime::StopTriggerEffect(bool bLeftTrigger)

@@ -226,6 +226,33 @@ void FHapticVoicePool::PlayCommand(const FWyvrnRuntimeCommand& Command, double N
 	UpdateTriggerEffects();
 }
 
+void FHapticVoicePool::StopAll()
+{
+	WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [VoicePool]: StopAll — stopping every voice and releasing both adaptive triggers."));
+
+	Runtime.StopAll();
+	DeactivateAllVoices();
+	TriggerClaims.Empty();
+	// With no claims left this switches off whichever triggers were armed, and is a
+	// no-op when none were.
+	UpdateTriggerEffects();
+}
+
+void FHapticVoicePool::SetAdaptiveTriggersEnabled(bool bEnabled)
+{
+	if (bAdaptiveTriggersEnabled == bEnabled)
+	{
+		return;
+	}
+
+	WYVRN_HAPTIC_TRACE(TEXT("WyvrnTrace [VoicePool]: adaptive triggers %s."), bEnabled ? TEXT("ENABLED") : TEXT("DISABLED"));
+
+	bAdaptiveTriggersEnabled = bEnabled;
+	// Claims are left untouched, so disabling releases the pad and enabling re-arms
+	// from whatever is still claimed.
+	UpdateTriggerEffects();
+}
+
 void FHapticVoicePool::Tick(double NowSeconds)
 {
 	bool bReclaimedAny = false;
@@ -449,7 +476,9 @@ void FHapticVoicePool::UpdateTriggerEffects()
 		// The provider holds one effect per trigger and the latest call wins, so a
 		// changed owner is a single re-arm; an unchanged one needs no call (the
 		// stiffness envelope is static per material).
-		const int32 OwnerMaterial = Owner != nullptr ? Owner->MaterialId : -1;
+		// Disabling the triggers is modelled as "no owner": the claims survive, they
+		// just stop reaching the pad until the triggers are switched back on.
+		const int32 OwnerMaterial = (bAdaptiveTriggersEnabled && Owner != nullptr) ? Owner->MaterialId : -1;
 		if (OwnerMaterial == AppliedTriggerMaterial[Side])
 		{
 			continue;

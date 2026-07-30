@@ -20,6 +20,8 @@ namespace
 		TArray<int32> Stopped;
 		int32 StoppedAllCount = 0;
 		TMap<int32, float> LastIntensity;
+		/** Last SetGlobalIntensity factor; -1 means it was never called. */
+		float LastGlobalIntensity = -1.0f;
 		/** (material id, bLeftTrigger) per StartTriggerEffect call, in order. */
 		TArray<TPair<int32, bool>> TriggerStarts;
 		/** bLeftTrigger per StopTriggerEffect call, in order. */
@@ -34,6 +36,7 @@ namespace
 		virtual bool IsAvailable() const override { return true; }
 		virtual int32 AddMaterial(const FString& MaterialJson) override { return NextId++; }
 		virtual void SetIntensity(int32 MaterialId, float Intensity) override { LastIntensity.FindOrAdd(MaterialId) = Intensity; }
+		virtual void SetGlobalIntensity(float Intensity) override { LastGlobalIntensity = Intensity; }
 		virtual void SetLoop(int32 MaterialId, int32 NumLoops) override {}
 		virtual void AddTarget(int32 MaterialId, EWyvrnHapticTarget Region, EWyvrnHapticSide Side) override {}
 		virtual void Play(int32 MaterialId, double TimeSeconds) override { Played.Add(MaterialId); }
@@ -696,6 +699,87 @@ bool FHapticVoicePoolTriggerArmRetryTest::RunTest(const FString& Parameters)
 
 	Pool.PlayCommand(Data.Commands[2], 0.0); // StopA releases the now-applied claims
 	TestEqual(TEXT("released after successful retry"), Runtime.TriggerStops.Num(), 2);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FHapticVoicePoolStopAllGainTest,
+	"Wyvrn.Haptics.VoicePoolStopAllReleasesTriggers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FHapticVoicePoolStopAllGainTest::RunTest(const FString& Parameters)
+{
+	// StopAll() is what the render worker calls when haptics are switched off at the
+	// master control. Silencing is not enough there: adaptive-trigger resistance is
+	// deliberately independent of the vibration gain, so a latched claim would keep
+	// the trigger stiff. StopAll must stop the voices AND release both triggers.
+	FWyvrnRuntimeData Data;
+	Data.EffectJson.Add(TEXT("{}")); // EffectId 0 -> stiffness-carrying, looping
+	Data.EffectJson.Add(TEXT("{}")); // EffectId 1 -> plain vibration
+	Data.Commands.Add(MakeStiffnessPlay(TEXT("Hold"), 0, -1, EWyvrnHapticSide::Global));
+	Data.Commands.Add(MakePlay(TEXT("Plain"), 1, -1, EWyvrnHapticPriority::High, EWyvrnHapticMixing::Merge));
+
+	FMockInterhapticsRuntime Runtime;
+	FHapticVoicePool Pool(Runtime, 1);
+	Pool.Preload(Data);
+
+	Pool.PlayCommand(Data.Commands[0], 0.0); // Hold -> arms L2 + R2
+	Pool.PlayCommand(Data.Commands[1], 0.0); // Plain -> a second live voice
+	TestEqual(TEXT("both triggers armed before the gain drops"), Runtime.TriggerStarts.Num(), 2);
+	TestEqual(TEXT("two voices live before the gain drops"), Pool.GetActiveVoiceCount(), 2);
+
+	Pool.StopAll();
+	TestEqual(TEXT("HAR told to stop everything"), Runtime.StoppedAllCount, 1);
+	TestEqual(TEXT("no voice left playing"), Pool.GetActiveVoiceCount(), 0);
+	TestEqual(TEXT("both triggers released"), Runtime.TriggerStops.Num(), 2);
+	TestTrue(TEXT("L2 released"), Runtime.TriggerStops.Contains(true));
+	TestTrue(TEXT("R2 released"), Runtime.TriggerStops.Contains(false));
+
+	// Idempotent: a second call must not re-issue trigger releases, or every frame at
+	// gain 0 would spam scePadSetTriggerEffect.
+	Pool.StopAll();
+	TestEqual(TEXT("no duplicate trigger releases"), Runtime.TriggerStops.Num(), 2);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FHapticVoicePoolTriggerToggleTest,
+	"Wyvrn.Haptics.VoicePoolTriggerToggle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FHapticVoicePoolTriggerToggleTest::RunTest(const FString& Parameters)
+{
+	// The adaptive triggers have their own on/off, independent of playback and of the
+	// vibration gain. Disabling releases the pad but keeps the claims latched, so
+	// re-enabling re-arms them; playback itself is never disturbed.
+	FWyvrnRuntimeData Data;
+	Data.EffectJson.Add(TEXT("{}"));
+	Data.Commands.Add(MakeStiffnessPlay(TEXT("Hold"), 0, -1, EWyvrnHapticSide::Global));
+
+	FMockInterhapticsRuntime Runtime;
+	FHapticVoicePool Pool(Runtime, 1);
+	Pool.Preload(Data);
+
+	Pool.PlayCommand(Data.Commands[0], 0.0); // arms L2 + R2 with material 1
+	TestEqual(TEXT("both triggers armed"), Runtime.TriggerStarts.Num(), 2);
+
+	Pool.SetAdaptiveTriggersEnabled(false);
+	TestEqual(TEXT("disabling releases both triggers"), Runtime.TriggerStops.Num(), 2);
+	TestEqual(TEXT("disabling does not stop the voice"), Pool.GetActiveVoiceCount(), 1);
+	TestEqual(TEXT("disabling issues no new arms"), Runtime.TriggerStarts.Num(), 2);
+
+	// Redundant toggles must not reach the pad at all.
+	Pool.SetAdaptiveTriggersEnabled(false);
+	TestEqual(TEXT("re-disabling is a no-op"), Runtime.TriggerStops.Num(), 2);
+
+	// While disabled, a newly played stiffness event claims but must not arm.
+	Pool.PlayCommand(Data.Commands[0], 1.0);
+	TestEqual(TEXT("no arming while disabled"), Runtime.TriggerStarts.Num(), 2);
+
+	Pool.SetAdaptiveTriggersEnabled(true);
+	TestEqual(TEXT("re-enabling re-arms from the surviving claims"), Runtime.TriggerStarts.Num(), 4);
 
 	return true;
 }

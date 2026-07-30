@@ -25,6 +25,20 @@ public:
 
 	/** SetEventIntensity. */
 	virtual void SetIntensity(int32 MaterialId, float Intensity) = 0;
+	/**
+	 * SetGlobalIntensity: the engine-wide master gain, multiplied into every event on
+	 * top of SetIntensity (final = Global * Event). Because it sits outside the
+	 * per-event channel it layers cleanly over the voice pool's priority ducking,
+	 * which owns SetIntensity. 1.0 is HAR's base value and 0.0 is silence; values
+	 * above 1.0 clip, so the caller clamps. HAR resets this to 1.0 on every Init()
+	 * (Quit() destroys the manager that holds it), so it must be re-applied after
+	 * each successful Initialize().
+	 *
+	 * Vibration only: HAR would also scale the Stiffness envelope by this value, but
+	 * StartTriggerEffect neutralises it so adaptive-trigger resistance stays at the
+	 * strength the .haps author designed.
+	 */
+	virtual void SetGlobalIntensity(float Intensity) = 0;
 	/** SetEventLoop: 0/1 = one shot, < 0 = infinite. */
 	virtual void SetLoop(int32 MaterialId, int32 NumLoops) = 0;
 	/** AddTargetToEvent. The implementation maps the region + lateral side to provider endpoints. */
@@ -53,6 +67,10 @@ public:
 	 * StopTriggerEffect for that trigger — it does not end with playback. One
 	 * trigger per call; the latest call per trigger wins. Returns false when the
 	 * pad rejected the effect (e.g. no controller yet) so the caller can retry.
+	 *
+	 * The envelope is sampled at the material's authored strength, unaffected by
+	 * SetGlobalIntensity - the general haptics gain attenuates vibration, not the
+	 * physical resistance of the triggers.
 	 */
 	virtual bool StartTriggerEffect(int32 MaterialId, bool bLeftTrigger) = 0;
 	/** Releases the adaptive trigger effect on L2 (bLeftTrigger) or R2 (provider stopTriggerEffect). */

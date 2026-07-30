@@ -52,6 +52,21 @@ public:
 	/** Applies Command's Interrupts_Commands stops, then plays each of its effects. */
 	void PlayCommand(const FWyvrnRuntimeCommand& Command, double NowSeconds);
 
+	/**
+	 * Stops every voice and releases both adaptive triggers - the same teardown the
+	 * bare-string "All" interrupt performs. Used when haptics are switched off
+	 * wholesale, where nothing may be left playing or resisting.
+	 */
+	void StopAll();
+
+	/**
+	 * Enables or disables the DualSense adaptive triggers independently of playback.
+	 * Disabling releases whatever is armed; the underlying claims stay latched, so
+	 * re-enabling re-arms whatever is still claimed. Events keep playing (and keep
+	 * vibrating) either way - this gates only the physical trigger resistance.
+	 */
+	void SetAdaptiveTriggersEnabled(bool bEnabled);
+
 	/** Reclaims voices whose playback length has elapsed. Call once per frame. */
 	void Tick(double NowSeconds);
 
@@ -157,4 +172,9 @@ private:
 	TArray<FTriggerClaim> TriggerClaims;
 	/** Material currently applied to each adaptive trigger (0 = L2, 1 = R2); -1 = released. */
 	int32 AppliedTriggerMaterial[2] = { -1, -1 };
+	/**
+	 * Gates whether latched claims actually reach the pad. False releases both
+	 * triggers while preserving TriggerClaims, so the claims can be re-armed later.
+	 */
+	bool bAdaptiveTriggersEnabled = true;
 };

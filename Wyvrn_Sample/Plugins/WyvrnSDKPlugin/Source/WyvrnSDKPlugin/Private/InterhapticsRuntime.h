@@ -30,6 +30,7 @@ public:
 	virtual bool IsAvailable() const override;
 	virtual int32 AddMaterial(const FString& MaterialJson) override;
 	virtual void SetIntensity(int32 MaterialId, float Intensity) override;
+	virtual void SetGlobalIntensity(float Intensity) override;
 	virtual void SetLoop(int32 MaterialId, int32 NumLoops) override;
 	virtual void AddTarget(int32 MaterialId, EWyvrnHapticTarget Region, EWyvrnHapticSide Side) override;
 	virtual void Play(int32 MaterialId, double TimeSeconds) override;
@@ -49,6 +50,14 @@ private:
 	typedef int (*FStopTriggerEffectFn)(bool bIsLeft);
 	FStartTriggerEffectFn StartTriggerEffectFn = nullptr;
 	FStopTriggerEffectFn StopTriggerEffectFn = nullptr;
+
+	/**
+	 * Last value handed to SetGlobalIntensity. Remembered because HAR applies the
+	 * global intensity to the Stiffness envelope as well as to vibration, and the
+	 * general haptics gain is deliberately vibration-only: StartTriggerEffect
+	 * neutralises the intensity for the duration of the arm and restores it from here.
+	 */
+	float GlobalIntensity = 1.0f;
 
 	bool bAvailable = false;
 };

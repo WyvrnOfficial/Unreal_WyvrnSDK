@@ -34,10 +34,26 @@ public:
 	virtual void Shutdown() override;
 	virtual bool IsInitialized() const override;
 	virtual void SetEventName(const FString& EventName) override;
+	virtual void SetHapticsEnabled(bool bEnabled) override;
+	virtual bool AreHapticsEnabled() const override;
+	virtual void SetVibrationGain(int32 Gain0To100) override;
+	virtual int32 GetVibrationGain() const override;
+	virtual void SetAdaptiveTriggersEnabled(bool bEnabled) override;
+	virtual bool AreAdaptiveTriggersEnabled() const override;
 
 private:
 	TUniquePtr<FWyvrnHapticRenderer> Renderer;
 	FRunnableThread* Thread = nullptr;
+
+	// Authoritative copies of the three controls, game thread only (like Renderer /
+	// Thread). They live on the backend rather than the worker because the backend
+	// spans the whole module lifetime while the worker is destroyed and rebuilt by
+	// every Shutdown()/Initialize() pair - and HAR resets its own global intensity to
+	// 1.0 on each Init() - so they must be held somewhere that outlives both and
+	// re-asserted on bring-up.
+	bool bHapticsEnabled = true;
+	int32 VibrationGain = 100;
+	bool bAdaptiveTriggersEnabled = true;
 };
 
 #endif // PLATFORM_PS5

@@ -56,3 +56,32 @@ struct FWyvrnRuntimeData
 	/** Returns the command for EventName, or nullptr. */
 	const FWyvrnRuntimeCommand* FindCommand(const FString& EventName) const;
 };
+
+/**
+ * The vibration gain range exposed to games: an integer 0..100, where 100 is
+ * unattenuated and 0 is silent. Out-of-range input is clamped rather than rejected,
+ * and the clamped value is what the plugin caches and reports back, so a Get always
+ * returns a value that was actually applied.
+ *
+ * Vibration only - it does not affect adaptive-trigger resistance, which has its own
+ * on/off, nor does a gain of 0 stop events playing (an event may carry a Stiffness
+ * track that still needs to arm a trigger). The master switch is separate again.
+ *
+ * Deliberately not PS5-guarded: only the HAR call itself is platform-specific, so
+ * keeping the conversion here lets it be unit tested on the editor platform.
+ */
+inline int32 WyvrnClampVibrationGain(int32 Gain0To100)
+{
+	return FMath::Clamp(Gain0To100, 0, 100);
+}
+
+/**
+ * Maps the 0..100 vibration gain to HAR's global intensity factor (SetGlobalIntensity):
+ * 100 => 1.0, HAR's documented base value, and 0 => 0.0, genuine silence.
+ * HAR clamps only the low end, so the ceiling is ours - an intensity above 1.0
+ * scales the per-band amplitude past full scale and clips on the audio-out stream.
+ */
+inline float WyvrnVibrationGainToScalar(int32 Gain0To100)
+{
+	return WyvrnClampVibrationGain(Gain0To100) / 100.0f;
+}
