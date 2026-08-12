@@ -28,6 +28,22 @@ bool FWyvrnHapsFileTest::RunTest(const FString& Parameters)
 	const FString EmptyNotes = TEXT("{ \"m_stiffness\": { \"m_melodies\": [ { \"m_gain\": 1.0, \"m_mute\": 0, \"m_notes\": [] } ] } }");
 	TestFalse(TEXT("stiffness melody without notes is not a track"), FWyvrnHapsFile::HasStiffnessTrack(EmptyNotes));
 
+	// .haps v6: no "m_" prefix and no melodies/notes — the stiffness stream is one
+	// interpolation curve. Shape taken from a real v6 export (Interhaptics Composer).
+	const FString V6WithStiffness = TEXT("{ \"version\": \"6\", \"gain\": 1.0, \"stiffness\": { \"gain\": 1.0, \"interpolation_function\": \"Cubic\", \"keyframes\": [ { \"position\": 0.0, \"slope\": 0.0, \"value\": 0.0 }, { \"position\": 1.0, \"slope\": 0.0, \"value\": 0.96 } ] }, \"vibration\": { \"melodies\": [ { \"notes\": [] } ], \"transients\": [] } }");
+	TestTrue(TEXT("v6 stiffness curve with keyframes is detected"), FWyvrnHapsFile::HasStiffnessTrack(V6WithStiffness));
+
+	// Same empty-layer rule as v5: the block exists but nothing was authored into it.
+	const FString V6EmptyKeyframes = TEXT("{ \"version\": \"6\", \"stiffness\": { \"gain\": 1.0, \"interpolation_function\": \"Cubic\", \"keyframes\": [] }, \"vibration\": { \"melodies\": [ { \"notes\": [ { \"gain\": 1.0 } ] } ] } }");
+	TestFalse(TEXT("v6 stiffness with no keyframes is not a track"), FWyvrnHapsFile::HasStiffnessTrack(V6EmptyKeyframes));
+
+	const FString V6NoKeyframesField = TEXT("{ \"version\": \"6\", \"stiffness\": { \"gain\": 1.0 } }");
+	TestFalse(TEXT("v6 stiffness without a keyframes field is not a track"), FWyvrnHapsFile::HasStiffnessTrack(V6NoKeyframesField));
+
+	// A v6 vibration-only effect (the common case) must stay false: no stiffness block.
+	const FString V6VibrationOnly = TEXT("{ \"version\": \"6\", \"gain\": 1.0, \"vibration\": { \"melodies\": [ { \"notes\": [ { \"gain\": 1.0 } ] } ], \"transients\": [] } }");
+	TestFalse(TEXT("v6 vibration-only effect is not a track"), FWyvrnHapsFile::HasStiffnessTrack(V6VibrationOnly));
+
 	// Vibration-only content must not count, and neither may malformed JSON.
 	const FString NoStiffnessBlock = TEXT("{ \"m_vibration\": { \"m_melodies\": [ { \"m_notes\": [ { \"m_gain\": 1.0 } ] } ] } }");
 	TestFalse(TEXT("no m_stiffness block is not a track"), FWyvrnHapsFile::HasStiffnessTrack(NoStiffnessBlock));
