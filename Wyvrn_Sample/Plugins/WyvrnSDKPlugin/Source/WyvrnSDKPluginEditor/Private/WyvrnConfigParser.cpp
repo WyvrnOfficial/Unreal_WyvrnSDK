@@ -15,6 +15,13 @@ namespace
 	{
 		if (In == TEXT("Head")) { Out = EWyvrnHapticTarget::Head; return true; }
 		if (In == TEXT("Hand")) { Out = EWyvrnHapticTarget::Hand; return true; }
+		// WYVRN's "All" is HAR's root body-part group (GroupID All = 0), which subsumes
+		// Hand. This backend renders nothing but the hand anyway - FInterhapticsRuntime::
+		// AddTarget discards every other region - so "All" and "Hand" produce the identical
+		// HAR call here. Without this case the targeting is dropped, the event is left with
+		// no targets and discarded whole, and a command with no other content disappears
+		// from the baked data entirely (its SetEventName then matches nothing at runtime).
+		if (In == TEXT("All")) { Out = EWyvrnHapticTarget::Hand; return true; }
 		if (In == TEXT("Chest")) { Out = EWyvrnHapticTarget::Chest; return true; }
 		if (In == TEXT("Waist")) { Out = EWyvrnHapticTarget::Waist; return true; }
 		if (In == TEXT("Leg")) { Out = EWyvrnHapticTarget::Leg; return true; }

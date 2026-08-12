@@ -51,6 +51,26 @@ bool FWyvrnConfigParserTest::RunTest(const FString& Parameters)
 		}
 	}
 
+	// Target "All" is HAR's root body-part group and subsumes Hand, so it must survive as
+	// a Hand target. Regressing this does not just drop the target: the event loses all
+	// targeting, gets discarded, and a command with no other content vanishes entirely.
+	const FString AllTargetConfig = TEXT("{ \"ExternalCommands\": [ { \"External_Command_ID\": \"Throw_Trad\", \"Haptic_Events\": [ { \"Haptic_Effect\": \"Throw_Trad\", \"Loop\": 1, \"Mixing\": \"Merge\", \"Targeting\": [ { \"Gain\": 1, \"Spatialization\": \"Global\", \"Target\": \"All\" } ] } ] } ] }");
+	TArray<FWyvrnParsedCommand> AllTargetCommands;
+	if (TestTrue(TEXT("All-target parse succeeds"), FWyvrnConfigParser::Parse(AllTargetConfig, AllTargetCommands, Error)))
+	{
+		TestEqual(TEXT("All-target command survives"), AllTargetCommands.Num(), 1);
+		if (AllTargetCommands.Num() == 1 && TestEqual(TEXT("All-target event kept"), AllTargetCommands[0].Effects.Num(), 1))
+		{
+			const FWyvrnParsedEffect& AllEvent = AllTargetCommands[0].Effects[0];
+			TestEqual(TEXT("All-target has one targeting"), AllEvent.Targeting.Num(), 1);
+			if (AllEvent.Targeting.Num() == 1)
+			{
+				TestTrue(TEXT("All maps to the Hand region"), AllEvent.Targeting[0].Target == EWyvrnHapticTarget::Hand);
+				TestTrue(TEXT("All keeps Global spatialization"), AllEvent.Targeting[0].Side == EWyvrnHapticSide::Global);
+			}
+		}
+	}
+
 	// Interrupts_Commands as the bare string "All" is the stop-all sentinel (kept even
 	// though it has no effects and no named interrupts).
 	const FString StopAllConfig = TEXT("{ \"ExternalCommands\": [ { \"External_Command_ID\": \"StopEverything\", \"Interrupts_Commands\": \"All\" } ] }");
