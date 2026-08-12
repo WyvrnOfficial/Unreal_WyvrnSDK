@@ -62,4 +62,52 @@ void FWyvrnSDKPlugin::ShutdownModule()
 
 #include "Windows/HideWindowsPlatformTypes.h"
 
+#elif defined(PLATFORM_PS5) && PLATFORM_PS5
+
+#include "IWyvrnHapticBackend.h"
+#include "InterhapticsHapticBackend.h"
+
+// PS5 routes WYVRN events to the Interhaptics HAR runtime. The module owns the
+// backend so its lifetime is bounded by module load/unload; InitSDK / UnInit
+// (from the Blueprint library) drive Initialize() / Shutdown().
+class FWyvrnSDKPlugin : public IWyvrnSDKPlugin
+{
+public:
+	virtual void StartupModule() override
+	{
+		Backend = MakeUnique<FInterhapticsHapticBackend>();
+	}
+
+	virtual void ShutdownModule() override
+	{
+		if (Backend.IsValid())
+		{
+			Backend->Shutdown();
+			Backend.Reset();
+		}
+	}
+
+	IWyvrnHapticBackend* GetBackend() const { return Backend.Get(); }
+
+private:
+	TUniquePtr<IWyvrnHapticBackend> Backend;
+};
+
+IMPLEMENT_MODULE(FWyvrnSDKPlugin, WyvrnSDKPlugin)
+
+IWyvrnHapticBackend* GetWyvrnHapticBackend()
+{
+	if (IWyvrnSDKPlugin::IsAvailable())
+	{
+		return static_cast<FWyvrnSDKPlugin&>(IWyvrnSDKPlugin::Get()).GetBackend();
+	}
+	return nullptr;
+}
+
+#else
+
+// Other non-Windows platforms still need a module implementation so the module
+// loads; the SDK is inert there.
+IMPLEMENT_MODULE(FDefaultModuleImpl, WyvrnSDKPlugin)
+
 #endif

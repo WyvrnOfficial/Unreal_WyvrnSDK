@@ -1,0 +1,6 @@
+# Interhaptics HAR engine + DualSense provider binaries (PRX + import stubs) are
+# distributed separately under their own licensing and must never be committed.
+# Drop them into PS5/bin/ locally; the build links/stages them when present and
+# the plugin stays inert on PS5 when they are absent.
+*.prx
+*.a

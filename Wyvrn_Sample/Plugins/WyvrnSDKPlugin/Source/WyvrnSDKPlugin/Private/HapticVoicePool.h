@@ -1,0 +1,180 @@
+// Copyright 2017-2025 Razer, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "WyvrnHapticTypes.h"
+
+class IInterhapticsRuntime;
+struct FWyvrnRuntimeData;
+struct FWyvrnRuntimeCommand;
+struct FWyvrnRuntimeEvent;
+
+/**
+ * Maps WYVRN events to HAR playback.
+ *
+ * HAR keys playback by material id and restarts a live id, so a single id cannot
+ * overlap itself. The pool therefore loads each effect under several ids
+ * (voices) for polyphony, reclaims a voice once its playback length elapses, and
+ * steals the lowest-priority voice when an effect is saturated.
+ *
+ * Voices are keyed by (effect, target-set): HAR's AddTargetToEvent is additive and
+ * has no clear, so a material id is bound to one target-set for its lifetime and
+ * its targets are applied once at preload. The same .haps used with Global vs Left
+ * vs Right therefore gets independent material ids and never conflates sides.
+ *
+ * It also arbitrates across every live voice: the highest-priority event playing
+ * silences all lower-priority events for its duration (priority ducking), and
+ * equal-priority events either merge or, when the newest is an Override event,
+ * play alone. Ducking mutes via SetIntensity(0) while the event keeps playing, so
+ * a ducked event's timeline still advances and it resumes mid-stream when the
+ * dominant event ends. Owned by the PS5 render worker; not thread-safe — every
+ * call must come from that one worker thread.
+ *
+ * A stiffness-carrying event LATCHES the DualSense adaptive trigger(s) its Hand
+ * sides address (Global = both, Left/Right = that one): playing the event arms
+ * the trigger with its stiffness envelope, and only interrupting the event (or
+ * stop-all / teardown) releases it — the natural end of playback does not,
+ * because the envelope maps trigger travel, not time, and so has no duration.
+ * Designers author an explicit OFF command (Interrupts_Commands) to clear it.
+ * Newest claim per trigger wins; a released trigger falls back to the newest
+ * surviving claim, and a trigger with no claim left is switched off.
+ */
+class FHapticVoicePool
+{
+public:
+	FHapticVoicePool(IInterhapticsRuntime& InRuntime, int32 InVoicesPerEffect);
+	~FHapticVoicePool();
+
+	/** Loads every distinct (effect, target-set) in Data, InVoicesPerEffect times, via the runtime. */
+	void Preload(const FWyvrnRuntimeData& Data);
+
+	/** Applies Command's Interrupts_Commands stops, then plays each of its effects. */
+	void PlayCommand(const FWyvrnRuntimeCommand& Command, double NowSeconds);
+
+	/**
+	 * Stops every voice and releases both adaptive triggers - the same teardown the
+	 * bare-string "All" interrupt performs. Used when haptics are switched off
+	 * wholesale, where nothing may be left playing or resisting.
+	 */
+	void StopAll();
+
+	/**
+	 * Enables or disables the DualSense adaptive triggers independently of playback.
+	 * Disabling releases whatever is armed; the underlying claims stay latched, so
+	 * re-enabling re-arms whatever is still claimed. Events keep playing (and keep
+	 * vibrating) either way - this gates only the physical trigger resistance.
+	 */
+	void SetAdaptiveTriggersEnabled(bool bEnabled);
+
+	/** Reclaims voices whose playback length has elapsed. Call once per frame. */
+	void Tick(double NowSeconds);
+
+	/** Number of voices currently playing across all pools (for profiling). */
+	int32 GetActiveVoiceCount() const;
+
+private:
+	/** Adaptive-trigger claim bits (DualSense L2 / R2). */
+	enum : uint8
+	{
+		TriggerLeft = 1 << 0,
+		TriggerRight = 1 << 1,
+	};
+
+	struct FVoice
+	{
+		int32 MaterialId = -1;
+		double BusyUntilSeconds = 0.0;
+		EWyvrnHapticPriority Priority = EWyvrnHapticPriority::VeryLow;
+		EWyvrnHapticMixing Mixing = EWyvrnHapticMixing::Merge;
+		/** Intended intensity when this voice is audible (the event's Gain). */
+		float Gain = 1.0f;
+		/** Last intensity sent to HAR; -1 forces the next arbitration pass to set it. */
+		float AppliedIntensity = -1.0f;
+		/** Monotonic play order, so Override picks the newest equal-priority voice. */
+		uint64 Sequence = 0;
+		bool bLooping = false;
+		/** Playing in HAR right now (possibly ducked to intensity 0). */
+		bool bActive = false;
+	};
+
+	/**
+	 * A latched adaptive-trigger claim. Independent of voices: it is asserted when
+	 * a stiffness-carrying event plays and removed only when that event is
+	 * interrupted, so it outlives the voice's playback window.
+	 */
+	struct FTriggerClaim
+	{
+		/** WYVRN event that asserted the claim (what Interrupts_Commands releases). */
+		FString EventName;
+		/** Material whose stiffness envelope is applied (any of the effect's pooled ids). */
+		int32 MaterialId = -1;
+		/** Triggers addressed (TriggerLeft / TriggerRight bits). */
+		uint8 Mask = 0;
+		/** Monotonic assert order; the newest claim per trigger wins. */
+		uint64 Sequence = 0;
+	};
+
+	// A voice pool is identified by its effect plus the exact set of targets bound
+	// to its material ids (an order-independent signature of the (region, side) pairs).
+	struct FPoolKey
+	{
+		int32 EffectId = -1;
+		uint32 TargetSignature = 0;
+
+		bool operator==(const FPoolKey& Other) const
+		{
+			return EffectId == Other.EffectId && TargetSignature == Other.TargetSignature;
+		}
+
+		friend uint32 GetTypeHash(const FPoolKey& Key)
+		{
+			return HashCombine(GetTypeHash(Key.EffectId), Key.TargetSignature);
+		}
+	};
+
+	/** Order-independent signature of an event's (region, side) target set. */
+	static uint32 MakeTargetSignature(const TArray<FWyvrnHapticTarget>& Targets);
+
+	/** Adaptive triggers a stiffness-carrying event claims, from its Hand sides; 0 without stiffness. */
+	static uint8 MakeTriggerMask(const FWyvrnRuntimeEvent& EffectEntry);
+
+	/** Returns a free voice, or steals one — but never evicts a strictly higher-priority voice. */
+	FVoice* AcquireVoice(TArray<FVoice>& Voices, EWyvrnHapticPriority IncomingPriority);
+
+	/** Finds the voice holding MaterialId across all pools, or null. */
+	FVoice* FindVoice(int32 MaterialId);
+
+	/** Finds a live voice in Voices currently owned by EventName (for restarting a loop), or null. */
+	FVoice* FindLiveVoiceForEvent(TArray<FVoice>& Voices, const FString& EventName);
+
+	/** Stops tracking a stopped voice: clears its busy/loop state and active-event entries. */
+	void DeactivateVoice(int32 MaterialId);
+
+	/** Stops tracking every voice (the "All" interrupt). */
+	void DeactivateAllVoices();
+
+	/** Re-applies priority ducking / Override muting across all live voices. */
+	void UpdateArbitration();
+
+	/** Re-arms / releases the DualSense adaptive triggers from the latched claims. */
+	void UpdateTriggerEffects();
+
+	/** Drops MaterialId from every event's active-voice list and prunes emptied keys. */
+	void ForgetVoice(int32 MaterialId);
+
+	IInterhapticsRuntime& Runtime;
+	int32 VoicesPerEffect;
+	uint64 NextSequence = 0;
+	TMap<FPoolKey, TArray<FVoice>> VoicesByPool;
+	TMap<FString, TArray<int32>> ActiveVoicesByEvent;
+	/** Latched trigger claims, keyed by (event, material); released only by interrupts. */
+	TArray<FTriggerClaim> TriggerClaims;
+	/** Material currently applied to each adaptive trigger (0 = L2, 1 = R2); -1 = released. */
+	int32 AppliedTriggerMaterial[2] = { -1, -1 };
+	/**
+	 * Gates whether latched claims actually reach the pad. False releases both
+	 * triggers while preserving TriggerClaims, so the claims can be re-armed later.
+	 */
+	bool bAdaptiveTriggersEnabled = true;
+};

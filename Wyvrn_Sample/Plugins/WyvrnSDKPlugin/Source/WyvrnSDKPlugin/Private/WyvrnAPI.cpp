@@ -1,3 +1,7 @@
+// Copyright 2017-2025 Razer, Inc. All Rights Reserved.
+
+#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
+
 #include "WyvrnAPI.h"
 #include "UnicodeWyvrnAPI.h"
 #include "WyvrnErrors.h"
@@ -126,3 +130,5 @@ namespace WyvrnSDK {
 #pragma endregion
 
 }
+
+#endif

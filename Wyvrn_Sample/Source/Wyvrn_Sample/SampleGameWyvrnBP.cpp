@@ -52,12 +52,21 @@ void USampleGameWyvrnBP::SampleGameSampleStart()
 			break;
 		}
 	}
+#elif defined(PLATFORM_PS5) && PLATFORM_PS5
+	if (!UWyvrnSDKPluginBPLibrary::IsInitialized())
+	{
+		// PS5 brings up HAR + the DualSense provider through the plugin's
+		// Interhaptics backend; the Razer app info is unused there.
+		FWyvrnSDKAppInfoType AppInfo;
+		const int32 Result = UWyvrnSDKPluginBPLibrary::WyvrnSDKInitSDK(AppInfo);
+		UE_LOG(LogWyvrnSampleGame, Log, TEXT("WyvrnSDK PS5 init result: %d"), Result);
+	}
 #endif
 }
 
 void USampleGameWyvrnBP::SampleGameSampleEnd()
 {
-#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
+#if PLATFORM_WINDOWS || (defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE) || (defined(PLATFORM_PS5) && PLATFORM_PS5)
 	UWyvrnSDKPluginBPLibrary::WyvrnSDKUnInit();
 #endif
 }
@@ -151,6 +160,74 @@ void USampleGameWyvrnBP::SampleGameShowEffect15()
 {
 	// Trigger AI, Chroma, and haptics
 	UWyvrnSDKPluginBPLibrary::SetEventName("Effect15");
+}
+
+#pragma endregion
+
+#pragma region PS5 Haptics Debug Harness
+
+// These mirror the Debug_* commands authored in the debug WYVRN.config. They
+// drive the PS5 haptics backend exactly as a game would (SetEventName), so the
+// transcode-to-Interhaptics behaviour can be felt on a DualSense.
+
+void USampleGameWyvrnBP::SampleGameDebugLoopA()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_LoopA");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugLoopB()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_LoopB");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugStopA()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_StopA");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugStopAll()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_StopAll");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugHandGlobal()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_HandGlobal");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugHandLeft()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_HandLeft");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugHandRight()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_HandRight");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugPriorityLow()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_PriorityLow");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugPriorityHigh()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_PriorityHigh");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugEqualA()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_EqualA");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugMergeB()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_MergeB");
+}
+
+void USampleGameWyvrnBP::SampleGameDebugOverrideB()
+{
+	UWyvrnSDKPluginBPLibrary::SetEventName("Debug_OverrideB");
 }
 
 #pragma endregion
